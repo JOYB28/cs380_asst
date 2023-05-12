@@ -68,12 +68,14 @@ static const float g_frustFar = -50.0;    // far plane
 static const float g_groundY = -2.0;      // y coordinate of the ground
 static const float g_groundSize = 10.0;   // half the ground length
 
-static int g_windowWidth = 1024; // TODO: 512
-static int g_windowHeight = 1024; // TODO: 512
+static int g_windowWidth = 512; // TODO: 512
+static int g_windowHeight = 512; // TODO: 512
 static bool g_mouseClickDown = false;    // is the mouse button pressed
+// 왼쪽, 오른쪽, 스크롤(middle) 클릭
 static bool g_mouseLClickButton, g_mouseRClickButton, g_mouseMClickButton;
 static int g_mouseClickX, g_mouseClickY; // coordinates for mouse click event
 static int g_activeShader = 0;
+static bool g_picking = false;
 
 static const int PICKING_SHADER = 2; // index of the picking shader is g_shaderFiles
 static const int g_numShaders = 3; // 3 shaders instead of 2
@@ -168,39 +170,42 @@ typedef SgGeometryShapeNode<Geometry> MyShapeNode;
 static shared_ptr<SgRootNode> g_world;
 static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode; // used later when you do picking
+static shared_ptr<SgRbtNode> g_nullRbtNode = shared_ptr<SgRbtNode>();
 
 // Vertex buffer and index buffer associated with the ground and cube geometry
-static shared_ptr<Geometry> g_ground, g_cube, g_cube2, g_arcball;
+static shared_ptr<Geometry> g_ground, g_cube, g_cube2, g_sphere;
 
 // --------- Scene
 
 static const Cvec3 g_light1(2.0, 3.0, 14.0), g_light2(-2, -3.0, -5.0);  // define two lights positions in world space
-static RigTForm g_skyRbt = RigTForm(Cvec3(0.0, 0.25, 4.0));
-static RigTForm g_objectRbt[2] = {
-  RigTForm(Cvec3(0.75, 0, 0)),
-  RigTForm(Cvec3(-0.75, 0, 0)),
-};
-static Cvec3f g_objectColors[2] = {
-  Cvec3f(1, 0, 0),
-  Cvec3f(0, 0, 1),
-};
+//static RigTForm g_skyRbt = RigTForm(Cvec3(0.0, 0.25, 4.0));
+//static RigTForm g_objectRbt[2] = {
+//  RigTForm(Cvec3(0.75, 0, 0)),
+//  RigTForm(Cvec3(-0.75, 0, 0)),
+//};
+//static Cvec3f g_objectColors[2] = {
+//  Cvec3f(1, 0, 0),
+//  Cvec3f(0, 0, 1),
+//};
 static Cvec3f g_arcballColor = Cvec3f(0, 1, 0);
 
-static RigTForm g_currentObjectRbt = g_objectRbt[0];
+//static RigTForm g_currentObjectRbt = g_objectRbt[0];
 
-static RigTForm g_currentEyeRbt = RigTForm(Cvec3(0.0, 0.25, 4.0));
-static int g_currentEyeIdx = 0; // 0: sky, 1: cube1, 2: cube2
-static string g_eyeNames[3] = {"sky", "cube1", "cube2"};
+static RigTForm g_currentEyeRbt;
+// 0: sky, 1: robot1, 2: robot2
+static int g_currentEyeIdx = 0;
+static string g_eyeNames[3] = {"sky", "robot1", "robot2"};
 
 static int g_manipulatedObject[3] = {
   -1,
   0,
   1,
 };
-static int g_currentManipulatedObjectIdx = 1; // 0: sky, 1: cube1, 2: cube2
-static string g_manipulatedObjectNames[3] = {"sky", "cube1", "cube2"};
+// 이제 쓸 필요없을듯
+//static int g_currentManipulatedObjectIdx = 0; // 0: sky, 1: robot1, 2: robot2
+//static string g_manipulatedObjectNames[3] = {"sky", "robot1", "robot2"};
 
-static int g_currentSkyFrame = 0; // 0: world-sky, 1: sky-sky
+static int g_currentSkyFrame = 1; // 0: world-sky, 1: sky-sky
 static string g_skyFrameNames[2] = {"world-sky", "sky-sky"};
 
 static double g_arcballScreenRadius = 0.25 * min(g_windowWidth, g_windowHeight);
@@ -235,13 +240,13 @@ static void initCubes() {
 
 static void initArcball() {
   int ibLen, vbLen;
-  getSphereVbIbLen(10, 10, vbLen, ibLen);
+  getSphereVbIbLen(20, 20, vbLen, ibLen);
 
   vector<VertexPN> vtx(vbLen);
   vector<unsigned short> idx(ibLen);
 
-  makeSphere(1, 10, 10, vtx.begin(), idx.begin());
-  g_arcball.reset(new Geometry(&vtx[0], &idx[0], vbLen, ibLen));
+  makeSphere(1, 20, 20, vtx.begin(), idx.begin());
+  g_sphere.reset(new Geometry(&vtx[0], &idx[0], vbLen, ibLen));
 }
 
 // -- 이건 다음주나 배움
@@ -270,7 +275,8 @@ static Matrix4 makeProjectionMatrix() {
     g_frustNear, g_frustFar);
 }
 
-static void drawStuff(const ShaderState& curSS, bool picking) {
+static void drawStuff(const ShaderState& curSS, bool picking, string context) {
+  cout << "drawStuff (context: " << context << " , picking: " << picking << ")" << endl;
 
   // build & send proj. matrix to vshader
   const Matrix4 projmat = makeProjectionMatrix();
@@ -279,14 +285,17 @@ static void drawStuff(const ShaderState& curSS, bool picking) {
   // use the skyRbt as the eyeRbt (스카이캠) Rbt body transformation
   // -- 과제하기 위해 eye frame을 바꿔야함
   if (g_currentEyeIdx == 0) {
-    g_currentEyeRbt = g_skyRbt;
+//    g_currentEyeRbt = g_skyRbt;
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
   } else if (g_currentEyeIdx == 1) {
-    g_currentEyeRbt = g_objectRbt[0];
+//    g_currentEyeRbt = g_objectRbt[0];
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot1Node);
   } else {
-    g_currentEyeRbt = g_objectRbt[1];
+//    g_currentEyeRbt = g_objectRbt[1];
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot2Node);
   }
   const RigTForm eyeRbt = g_currentEyeRbt;
-  cout << "eyeRbt x: " << eyeRbt.getTranslation()[0] << ", y: " << eyeRbt.getTranslation()[1] << ", z: " << eyeRbt.getTranslation()[2] << endl;
+//  cout << "eyeRbt x: " << eyeRbt.getTranslation()[0] << ", y: " << eyeRbt.getTranslation()[1] << ", z: " << eyeRbt.getTranslation()[2] << endl;
   const RigTForm invEyeRbt = inv(eyeRbt);
 
   const Cvec3 eyeLight1 = Cvec3(invEyeRbt * Cvec4(g_light1, 1)); // g_light1 position in eye coordinates
@@ -298,49 +307,92 @@ static void drawStuff(const ShaderState& curSS, bool picking) {
     Drawer drawer(invEyeRbt, curSS);
     g_world->accept(drawer);
 
-    // draw arcball as part of asst3
     // draw arcball
     // ============
-    string manipulatedObjectName = g_manipulatedObjectNames[g_currentManipulatedObjectIdx];
+    cout << "g_currentPickedRbtNode: " << g_currentPickedRbtNode << endl;
+    cout << "g_currentPickedRbtNode is not null " << (g_currentPickedRbtNode == g_nullRbtNode) << endl;
     string currentEyeName = g_eyeNames[g_currentEyeIdx];
     string currentSkyFrame = g_skyFrameNames[g_currentSkyFrame];
-    if (
-      (manipulatedObjectName == "cube1" && currentEyeName != "cube1")
-      || (manipulatedObjectName == "cube2" && currentEyeName != "cube2")
-      || (manipulatedObjectName == "sky" && currentEyeName == "sky" && currentSkyFrame == "world-sky")
-      ) {
+    if (g_currentPickedRbtNode != g_nullRbtNode || (currentEyeName == "sky" && currentSkyFrame == "world-sky")) {
+      RigTForm arcballPlace = getPathAccumRbt(g_world, g_currentPickedRbtNode);
+
       double z;
-      if (manipulatedObjectName == "sky") {
+      if (currentEyeName == "sky" && currentSkyFrame == "world-sky") {
         // world-sky 프레임이라고 가정할 수 있음
         z = (invEyeRbt * RigTForm(Cvec3(0, 0, 0))).getTranslation()[2];
       } else {
-        // cube
-        z = (invEyeRbt * g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]]).getTranslation()[2];
+        z = (invEyeRbt * arcballPlace).getTranslation()[2];
       }
 
       // 눌려있는 동안 업데이트 X
       if (!(g_mouseMClickButton || (g_mouseLClickButton && g_mouseRClickButton))) {
+//        cout << "drawArcball 2" << endl;
+//        double z = (invEyeRbt * arcballPlace).getTranslation()[2];
         g_arcballScale = getScreenToEyeScale(z, g_frustFovY, g_windowHeight);
       }
+//      cout << "drawArcball 3" << endl;
 
       double radius = g_arcballScale * g_arcballScreenRadius;
-      Matrix4 scale = Matrix4::makeScale(Cvec3(1, 1, 1)  * radius);
+      Matrix4 scale = Matrix4::makeScale(Cvec3(1, 1, 1) * radius);
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       Matrix4 MVM;
-      Matrix4 NMVM;
-      if (manipulatedObjectName == "sky") {
+      if (currentEyeName == "sky" && currentSkyFrame == "world-sky") {
         // world-sky 프레임이라고 가정할 수 있음
         MVM = rigTFormToMatrix(invEyeRbt * RigTForm(Cvec3(0, 0, 0))) * scale;
       } else {
-        // cube
-        MVM = rigTFormToMatrix(invEyeRbt * g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]]) * scale;
+        MVM = rigTFormToMatrix(invEyeRbt * arcballPlace) * scale;
       }
-      NMVM = normalMatrix(MVM);
+
+      Matrix4 NMVM = normalMatrix(MVM);
+
       sendModelViewNormalMatrix(curSS, MVM, NMVM);
       safe_glUniform3f(curSS.h_uColor, g_arcballColor[0], g_arcballColor[1], g_arcballColor[2]);
-      g_arcball->draw(curSS);
+      g_sphere->draw(curSS);
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
+
+//    // draw arcball from asst3
+//    string manipulatedObjectName = g_manipulatedObjectNames[g_currentManipulatedObjectIdx];
+//    string currentEyeName = g_eyeNames[g_currentEyeIdx];
+//    string currentSkyFrame = g_skyFrameNames[g_currentSkyFrame];
+//    if (
+//      (manipulatedObjectName == "cube1" && currentEyeName != "cube1")
+//      || (manipulatedObjectName == "cube2" && currentEyeName != "cube2")
+//      || (manipulatedObjectName == "sky" && currentEyeName == "sky" && currentSkyFrame == "world-sky")
+//    ) {
+//      double z;
+//      if (manipulatedObjectName == "sky") {
+//        // world-sky 프레임이라고 가정할 수 있음
+//        z = (invEyeRbt * RigTForm(Cvec3(0, 0, 0))).getTranslation()[2];
+//      } else {
+//        // cube
+//        z = (invEyeRbt * g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]]).getTranslation()[2];
+//      }
+//
+//      // 눌려있는 동안 업데이트 X
+//      if (!(g_mouseMClickButton || (g_mouseLClickButton && g_mouseRClickButton))) {
+//        g_arcballScale = getScreenToEyeScale(z, g_frustFovY, g_windowHeight);
+//      }
+//
+//      double radius = g_arcballScale * g_arcballScreenRadius;
+//      Matrix4 scale = Matrix4::makeScale(Cvec3(1, 1, 1)  * radius);
+//      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+//      Matrix4 MVM;
+//      Matrix4 NMVM;
+//      if (manipulatedObjectName == "sky") {
+//        // world-sky 프레임이라고 가정할 수 있음
+//        MVM = rigTFormToMatrix(invEyeRbt * RigTForm(Cvec3(0, 0, 0))) * scale;
+//      } else {
+//        // cube
+//        MVM = rigTFormToMatrix(invEyeRbt * g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]]) * scale;
+//      }
+//      NMVM = normalMatrix(MVM);
+//      sendModelViewNormalMatrix(curSS, MVM, NMVM);
+//      safe_glUniform3f(curSS.h_uColor, g_arcballColor[0], g_arcballColor[1], g_arcballColor[2]);
+//      g_arcball->draw(curSS);
+//      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+//    }
+
   }
   else {
     Picker picker(invEyeRbt, curSS);
@@ -348,7 +400,8 @@ static void drawStuff(const ShaderState& curSS, bool picking) {
     glFlush();
     g_currentPickedRbtNode = picker.getRbtNodeAtXY(g_mouseClickX, g_mouseClickY);
     if (g_currentPickedRbtNode == g_groundNode)
-      g_currentPickedRbtNode = shared_ptr<SgRbtNode>();   // set to NULL
+//      g_currentPickedRbtNode = g_skyNode;
+      g_currentPickedRbtNode = g_nullRbtNode;   // set to NULL
   }
 
 //  // draw ground
@@ -374,16 +427,43 @@ static void drawStuff(const ShaderState& curSS, bool picking) {
 //  safe_glUniform3f(curSS.h_uColor, g_objectColors[1][0], g_objectColors[1][1], g_objectColors[1][2]);
 //  g_cube2->draw(curSS);
 
+}
 
+static void pick() {
+  // We need to set the clear color to black, for pick rendering.
+  // so let's save the clear color
+  GLdouble clearColor[4];
+  glGetDoublev(GL_COLOR_CLEAR_VALUE, clearColor);
+
+  glClearColor(0, 0, 0, 0);
+
+  // using PICKING_SHADER as the shader
+  glUseProgram(g_shaderStates[PICKING_SHADER]->program);
+
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  drawStuff(*g_shaderStates[PICKING_SHADER], true, "pick()");
+
+  // Uncomment below and comment out the glutPostRedisplay in mouse(...) call back
+  // to see result of the pick rendering pass
+//   glutSwapBuffers();
+
+  //Now set back the clear color
+  glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+
+  checkGlErrors();
 }
 
 static void display() {
   glUseProgram(g_shaderStates[g_activeShader]->program);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);                   // clear framebuffer color&depth
 
-  drawStuff(*g_shaderStates[g_activeShader], false);
+  if (!g_picking) {
+    drawStuff(*g_shaderStates[g_activeShader], g_picking, "display");
+    // show the back buffer (where we rendered stuff)
+    glutSwapBuffers();
+  } else {
 
-  glutSwapBuffers();                                    // show the back buffer (where we rendered stuff)
+  }
 
   checkGlErrors();
 }
@@ -455,31 +535,38 @@ static void motion(const int x, const int y) {
 
   RigTForm auxFrame;
   if (g_currentEyeIdx == 0) {
-    g_currentEyeRbt = g_skyRbt;
+//    g_currentEyeRbt = g_skyRbt;
+    g_currentEyeRbt = g_skyNode->getRbt();
   } else if (g_currentEyeIdx == 1) {
-    g_currentEyeRbt = g_objectRbt[0];
+//    g_currentEyeRbt = g_objectRbt[0];
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot1Node);
   } else {
-    g_currentEyeRbt = g_objectRbt[1];
+//    g_currentEyeRbt = g_objectRbt[1];
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot2Node);
   }
 
   bool arcballRotation = false;
   RigTForm arcballRotationRbt = RigTForm();
   // arcball 회전
-  string manipulatedObjectName = g_manipulatedObjectNames[g_currentManipulatedObjectIdx];
   string currentEyeName = g_eyeNames[g_currentEyeIdx];
   string currentSkyFrame = g_skyFrameNames[g_currentSkyFrame];
-  if (
-    (manipulatedObjectName == "cube1" && currentEyeName != "cube1")
-    || (manipulatedObjectName == "cube2" && currentEyeName != "cube2")
-    || (manipulatedObjectName == "sky" && currentEyeName == "sky" && currentSkyFrame == "world-sky")
-  ) {
+  if (g_currentPickedRbtNode != g_nullRbtNode || (currentEyeName == "sky" && currentSkyFrame == "world-sky")) {
+
+//  string manipulatedObjectName = g_manipulatedObjectNames[g_currentManipulatedObjectIdx];
+//  if (
+//    (manipulatedObjectName == "cube1" && currentEyeName != "cube1")
+//    || (manipulatedObjectName == "cube2" && currentEyeName != "cube2")
+//    || (manipulatedObjectName == "sky" && currentEyeName == "sky" && currentSkyFrame == "world-sky")
+//  ) {
     Cvec3 centerOfArcball;
-    if (manipulatedObjectName == "sky") {
+//    if (manipulatedObjectName == "sky") {
+    if (g_currentPickedRbtNode == g_nullRbtNode) {
       // world-sky 프레임이라고 가정할 수 있음
       centerOfArcball = Cvec3(0, 0, 0);
     } else {
-      // cube
-      centerOfArcball = g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]].getTranslation();
+      // object
+      centerOfArcball = getPathAccumRbt(g_world, g_currentPickedRbtNode).getTranslation();
+//      centerOfArcball = g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]].getTranslation();
     }
 
     double radius = g_arcballScale * g_arcballScreenRadius;
@@ -498,91 +585,154 @@ static void motion(const int x, const int y) {
     double distanceOfCenter1 = sqrt((arcballPoint1[0] - centerOfArcball[0]) * (arcballPoint1[0] - centerOfArcball[0]) + (arcballPoint1[1] - centerOfArcball[1]) * (arcballPoint1[1] - centerOfArcball[1]) + (arcballPoint1[2] - centerOfArcball[2]) * (arcballPoint1[2] - centerOfArcball[2]));
     cout << "distanceOfCenter1: " << distanceOfCenter1 << endl;
 
-      Cvec3 arcballVector0 = normalize(arcballPoint0 - centerOfArcball);
-      Cvec3 arcballVector1 = normalize(arcballPoint1 - centerOfArcball);
-      Quat quatVector0 = Quat(0, arcballVector0);
-  //    cout << "quatVector0 i: " << arcballVector0[1] << ", j: " << arcballVector0[2] << ", k: " << arcballVector0[3] << ", w: " << arcballVector0[0] << endl;
-      Quat quatVector1 = Quat(0, arcballVector1);
-  //    cout << "quatVector1 i: " << arcballVector1[1] << ", j: " << arcballVector1[2] << ", k: " << arcballVector1[3] << ", w: " << arcballVector1[0] << endl;
+    Cvec3 arcballVector0 = normalize(arcballPoint0 - centerOfArcball);
+    Cvec3 arcballVector1 = normalize(arcballPoint1 - centerOfArcball);
+    Quat quatVector0 = Quat(0, arcballVector0);
+//    cout << "quatVector0 i: " << arcballVector0[1] << ", j: " << arcballVector0[2] << ", k: " << arcballVector0[3] << ", w: " << arcballVector0[0] << endl;
+    Quat quatVector1 = Quat(0, arcballVector1);
+//    cout << "quatVector1 i: " << arcballVector1[1] << ", j: " << arcballVector1[2] << ", k: " << arcballVector1[3] << ", w: " << arcballVector1[0] << endl;
 
-  //    cout << "arcballRotation: true" << endl;
-      arcballRotation = true;
-      if (manipulatedObjectName == "sky") {
-        // world-sky 프레임이라고 가정할 수 있음
-        arcballRotationRbt.setRotation(quatVector1 * (quatVector0 * -1));
-        arcballRotationRbt = inv(arcballRotationRbt);
-      } else {
-        // cube
-        arcballRotationRbt.setRotation(quatVector1 * (quatVector0 * -1));
-      }
+//    cout << "arcballRotation: true" << endl;
+    arcballRotation = true;
+//    if (manipulatedObjectName == "sky")
+    if (g_currentPickedRbtNode == g_nullRbtNode) {
+      // world-sky 프레임이라고 가정할 수 있음
+      arcballRotationRbt.setRotation(quatVector1 * (quatVector0 * -1));
+      arcballRotationRbt = inv(arcballRotationRbt);
+    } else {
+      // cube
+      arcballRotationRbt.setRotation(quatVector1 * (quatVector0 * -1));
+    }
   }
 
-  if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky") {
+  cout << "arcballRotation: " << arcballRotation << endl;
+
+  if (g_currentPickedRbtNode == g_nullRbtNode) {
     // object가 sky
     cout << "object is sky!!" << endl;
-    if (g_eyeNames[g_currentEyeIdx] != "sky") {
-      // eye frame이 cube인 경우
+    if (g_currentEyeIdx != 0) {
+      cout << "debug1" << endl;
+      // eye frame이 sky가 아닌 경우
       return;
-    } else if (g_skyFrameNames[g_currentSkyFrame] == "world-sky") {
+    }
+    else if (g_skyFrameNames[g_currentSkyFrame] == "world-sky") {
+      cout << "debug2" << endl;
       // world-sky
       cout << "eye is world-sky!!" << endl;
-      auxFrame = linFact(g_skyRbt);
+      auxFrame = linFact(g_skyNode->getRbt());
     } else {
+      cout << "debug3" << endl;
       // sky-sky
       cout << "eys is sky-sky!!" << endl;
-      auxFrame = transFact(g_skyRbt) * linFact(g_skyRbt);
+      auxFrame = transFact(g_skyNode->getRbt()) * linFact(g_skyNode->getRbt());
     }
   } else {
-    // object가 cube
-    cout << "object is cube!!" << endl;
-    auxFrame = transFact(g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]]) * linFact(g_currentEyeRbt);
+    cout << "debug4" << endl;
+    // object가 sky가 아님 (로봇 등)
+    cout << "object is not sky!!" << endl;
+//    RigTForm currentTarget = getPathAccumRbt(g_world, g_currentPickedRbtNode);
+//    auxFrame = transFact(currentTarget) * linFact(g_currentEyeRbt);
+    // eye가 sky
+    if (g_currentEyeIdx == 0) {
+      auxFrame = inv(getPathAccumRbt(g_world, g_currentPickedRbtNode, 1))
+        * transFact(getPathAccumRbt(g_world, g_currentPickedRbtNode))
+        * linFact(getPathAccumRbt(g_world, g_skyNode));
+    }
+    // eye가 다른 robot
+    else {
+      auxFrame = inv(getPathAccumRbt(g_world, g_currentPickedRbtNode, 1))
+        * getPathAccumRbt(g_world, g_currentPickedRbtNode);
+    }
   }
+
+//  if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky") {
+//    // object가 sky
+//    cout << "object is sky!!" << endl;
+//    if (g_eyeNames[g_currentEyeIdx] != "sky") {
+//      // eye frame이 cube인 경우
+//      return;
+//    } else if (g_skyFrameNames[g_currentSkyFrame] == "world-sky") {
+//      // world-sky
+//      cout << "eye is world-sky!!" << endl;
+//      auxFrame = linFact(g_skyRbt);
+//    } else {
+//      // sky-sky
+//      cout << "eys is sky-sky!!" << endl;
+//      auxFrame = transFact(g_skyRbt) * linFact(g_skyRbt);
+//    }
+//  } else {
+//    // object가 cube
+//    cout << "object is cube!!" << endl;
+//    auxFrame = transFact(g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]]) * linFact(g_currentEyeRbt);
+//  }
 
   RigTForm m;
   if (g_mouseLClickButton && !g_mouseRClickButton) { // left button down?
+    cout << "debut AA" << endl;
     if (arcballRotation) {
+      cout << "debut A1" << endl;
       m = arcballRotationRbt;
     } else {
-      if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] != "sky"
-        && g_manipulatedObjectNames[g_currentManipulatedObjectIdx] != g_eyeNames[g_currentEyeIdx]
-      ) {
-        m = RigTForm(Quat::makeXRotation(-dy) * Quat::makeYRotation(dx));
-      } else {
-        m = RigTForm(Quat::makeXRotation(dy) * Quat::makeYRotation(-dx));
-      }
+      cout << "debut A2" << endl;
+      // 둘중에 하나임
+      m = RigTForm(Quat::makeXRotation(dy) * Quat::makeYRotation(-dx));
+//      if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] != "sky"
+//        && g_manipulatedObjectNames[g_currentManipulatedObjectIdx] != g_eyeNames[g_currentEyeIdx]
+//      ) {
+//        m = RigTForm(Quat::makeXRotation(-dy) * Quat::makeYRotation(dx));
+//      } else {
+//        m = RigTForm(Quat::makeXRotation(dy) * Quat::makeYRotation(-dx));
+//      }
     }
   } else if (g_mouseRClickButton && !g_mouseLClickButton) { // right button down?
+    cout << "debut CC" << endl;
 //    cout << "g_arcballScale1: " << g_arcballScale << endl;
     // world-sky이면서, object, eye 둘다 sky
-    if (g_eyeNames[g_currentEyeIdx] == "sky"
-      && g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky"
-      && g_skyFrameNames[g_currentSkyFrame] == "world-sky"
-    ) {
+    if (currentEyeName == "sky" && currentSkyFrame == "world-sky") {
+      cout << "debut C1" << endl;
+//    if (g_eyeNames[g_currentEyeIdx] == "sky"
+//      && g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky"
+//      && g_skyFrameNames[g_currentSkyFrame] == "world-sky"
+//    ) {
       m = RigTForm(Cvec3(-dx, -dy, 0) * g_arcballScale);
     } else {
+      cout << "debut C2" << endl;
       m = RigTForm(Cvec3(dx, dy, 0) * g_arcballScale);
     }
   } else if (g_mouseMClickButton || (g_mouseLClickButton && g_mouseRClickButton)) {  // middle or (left and right) button down?
+    cout << "debut B" << endl;
 //    cout << "g_arcballScale2: " << g_arcballScale << endl;
 //    cout << "debugxxxxxx" << endl;
     m = RigTForm(Cvec3(0, 0, -dy) * g_arcballScale);
 //    g_arcballScreenRadius = (g_arcballScale / 0.01);
   }
 
+  cout << "debut D" << endl;
   // AMA^-1
 //  cout << "debug10" << endl;
   RigTForm ama = auxFrame * m * inv(auxFrame);
 //  cout << "debug11" << endl;
 
+  cout << "debut E" << endl;
   if (g_mouseClickDown) {
-    if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky") {
+    cout << "debut F" << endl;
+    if (g_currentPickedRbtNode != g_nullRbtNode) {
+      cout << "debut F1" << endl;
+//    if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky") {
       cout << "hello" << endl;
-      g_skyRbt = ama * g_skyRbt;
+//      g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]] = ama * g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]];
+//      RigTForm currentTarget = getPathAccumRbt(g_world, g_currentPickedRbtNode);
+      g_currentPickedRbtNode->setRbt(ama * g_currentPickedRbtNode->getRbt());
     } else {
-      g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]] = ama * g_objectRbt[g_manipulatedObject[g_currentManipulatedObjectIdx]];
+      cout << "debut F2" << endl;
+//      skyRbt = ama * skyRbt;
+      g_skyNode->setRbt(ama * g_skyNode->getRbt());
     }
+
+    cout << "debut F3" << endl;
     glutPostRedisplay(); // we always redraw if we changed the scene
   }
+  cout << "debut G" << endl;
 
   g_mouseClickX = x;
   g_mouseClickY = g_windowHeight - y - 1;
@@ -592,8 +742,8 @@ static void motion(const int x, const int y) {
 static void mouse(const int button, const int state, const int x, const int y) {
   cout << "mouse! button:" << button << " state:" << state << " x:" << x << " y:" << y << endl;
   g_mouseClickX = x;
-  g_mouseClickY =
-    g_windowHeight - y - 1;  // conversion from GLUT window-coordinate-system to OpenGL window-coordinate-system
+  // conversion from GLUT window-coordinate-system to OpenGL window-coordinate-system
+  g_mouseClickY = g_windowHeight - y - 1;
 
   g_mouseLClickButton |= (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN);
   g_mouseRClickButton |= (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN);
@@ -605,7 +755,14 @@ static void mouse(const int button, const int state, const int x, const int y) {
 
   g_mouseClickDown = g_mouseLClickButton || g_mouseRClickButton || g_mouseMClickButton;
 
+  if (g_picking && g_mouseLClickButton) {
+    pick();
+    g_picking = false;
+    cout << "picking end! g_picking: true -> false" << endl;
+  }
+
   // 마우스 떼졌을때 redraw
+  // TODO: 다시 uncomment
   glutPostRedisplay();
 }
 
@@ -633,13 +790,25 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     case 'v':
       g_currentEyeIdx = (g_currentEyeIdx + 1) % 3;
       cout << "현재 eye: " << g_eyeNames[g_currentEyeIdx] << endl;
+
+      if (g_currentEyeIdx == 1) {
+        cout << "eye가 robot이라서 pickedRbtNode를 robot1로 업데이트!" << endl;
+        g_currentPickedRbtNode = g_robot1Node;
+      } else if (g_currentEyeIdx == 2) {
+        cout << "eye가 robot이라서 pickedRbtNode를 robot2로 업데이트!" << endl;
+        g_currentPickedRbtNode = g_robot2Node;
+      } else {
+        // eye가 sky가 될때 초기화
+        g_currentPickedRbtNode = g_nullRbtNode;
+      }
+      cout << "pickedRbt 초기화!" << endl;
       break;
-    case 'o':
-      g_currentManipulatedObjectIdx = (g_currentManipulatedObjectIdx + 1) % 3;
-      cout << "현재 object: " << g_manipulatedObjectNames[g_currentManipulatedObjectIdx] << endl;
-      break;
+//    case 'o':
+//      g_currentManipulatedObjectIdx = (g_currentManipulatedObjectIdx + 1) % 3;
+//      cout << "현재 object: " << g_manipulatedObjectNames[g_currentManipulatedObjectIdx] << endl;
+//      break;
     case 'm':
-      if (g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky"
+      if (g_currentPickedRbtNode == g_nullRbtNode
         && g_eyeNames[g_currentEyeIdx] == "sky"
       ) {
         g_currentSkyFrame = (g_currentSkyFrame + 1) % 2;
@@ -647,6 +816,21 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       } else {
         cout << "m 옵션은 eye랑 object가 둘다 sky일 때만 가능합니다." << endl;
       }
+      break;
+    case 'p':
+      bool old_picking = g_picking;
+      if (g_picking) {
+        g_picking = false;
+        cout << "picking end by p pressed! g_picking: true -> false" << endl;
+      } else {
+        g_picking = true;
+        if (g_eyeNames[g_currentEyeIdx] == "sky" && g_skyFrameNames[g_currentSkyFrame] == "world-sky") {
+          g_currentSkyFrame = (g_currentSkyFrame + 1) % 2;
+          cout << "현재 sky frame이 world-sky라서 바꿈: " << g_skyFrameNames[g_currentSkyFrame] << endl;
+        }
+        cout << "picking start! g_picking: false -> true" << endl;
+      }
+      break;
   }
   glutPostRedisplay();
 }
@@ -700,9 +884,13 @@ static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color)
     ARM_THICK = 0.25,
     TORSO_LEN = 1.5,
     TORSO_THICK = 0.25,
-    TORSO_WIDTH = 1;
-  const int NUM_JOINTS = 3,
-    NUM_SHAPES = 3;
+    TORSO_WIDTH = 1,
+    HEAD_RADIUS = 0.25,
+    LEG_THICK = 0.2,
+    LEG_LEN = 0.7;
+
+  const int NUM_JOINTS = 10,
+    NUM_SHAPES = 10;
 
   struct JointDesc {
       int parent;
@@ -713,6 +901,13 @@ static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color)
     {-1}, // torso
     {0,  TORSO_WIDTH/2, TORSO_LEN/2, 0}, // upper right arm
     {1,  ARM_LEN, 0, 0}, // lower right arm
+    {0, -TORSO_WIDTH/2, TORSO_LEN/2, 0}, // upper left arm
+    {3, -ARM_LEN, 0, 0}, // lower left arm
+    {0, TORSO_WIDTH/4, -TORSO_LEN/2, 0}, // upper right leg
+    {5, 0, -LEG_LEN, 0}, // lower right leg
+    {0, -TORSO_WIDTH/4, -TORSO_LEN/2, 0}, // upper left leg
+    {7, 0, -LEG_LEN, 0}, // lower left leg
+    {0, 0, TORSO_LEN/2, 0}, // head
   };
 
   struct ShapeDesc {
@@ -723,8 +918,15 @@ static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color)
 
   ShapeDesc shapeDesc[NUM_SHAPES] = {
     {0, 0,         0, 0, TORSO_WIDTH, TORSO_LEN, TORSO_THICK, g_cube}, // torso
-    {1, ARM_LEN/2, 0, 0, ARM_LEN, ARM_THICK, ARM_THICK, g_cube}, // upper right arm
+    {1, ARM_LEN/2, 0, 0, ARM_LEN/2, ARM_THICK/2, ARM_THICK/2, g_sphere}, // upper right arm
     {2, ARM_LEN/2, 0, 0, ARM_LEN, ARM_THICK, ARM_THICK, g_cube}, // lower right arm
+    {3, -ARM_LEN/2, 0, 0, ARM_LEN/2, ARM_THICK/2, ARM_THICK/2, g_sphere}, // upper left arm
+    {4, -ARM_LEN/2, 0, 0, ARM_LEN, ARM_THICK, ARM_THICK, g_cube}, // lower left arm
+    {5, 0, -LEG_LEN/2, 0, LEG_THICK/2, LEG_LEN/2, LEG_THICK/2, g_sphere}, // upper right leg
+    {6, 0, -LEG_LEN/2, 0, LEG_THICK, LEG_LEN, LEG_THICK, g_cube}, // lower left leg
+    {7, 0, -LEG_LEN/2,0, LEG_THICK/2, LEG_LEN/2, LEG_THICK/2, g_sphere}, // upper right leg
+    {8, 0, -LEG_LEN/2, 0, LEG_THICK, LEG_LEN, LEG_THICK, g_cube}, // lower left leg
+    {9, 0, HEAD_RADIUS, 0, HEAD_RADIUS, HEAD_RADIUS, HEAD_RADIUS, g_sphere}, // head
   };
 
   shared_ptr<SgTransformNode> jointNodes[NUM_JOINTS];
@@ -752,6 +954,7 @@ static void initScene() {
   g_world.reset(new SgRootNode());
 
   g_skyNode.reset(new SgRbtNode(RigTForm(Cvec3(0.0, 0.25, 4.0))));
+  g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
 
   g_groundNode.reset(new SgRbtNode());
   g_groundNode->addChild(shared_ptr<MyShapeNode>(
@@ -786,7 +989,6 @@ int main(int argc, char *argv[]) {
     initGeometry();
     initScene();
 
-    // ?? 이거 뭐지
     glutMainLoop();
     return 0;
   }

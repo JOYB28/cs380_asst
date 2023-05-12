@@ -10,28 +10,42 @@ Picker::Picker(const RigTForm& initialRbt, const ShaderState& curSS)
   , srgbFrameBuffer_(!g_Gl2Compatible) {}
 
 bool Picker::visit(SgTransformNode& node) {
+  shared_ptr<SgNode> sgNode = node.shared_from_this();
+  nodeStack_.push_back(sgNode);
+
   // TODO
   return drawer_.visit(node);
 }
 
 bool Picker::postVisit(SgTransformNode& node) {
-  // TODO
+  nodeStack_.pop_back();
   return drawer_.postVisit(node);
 }
 
 bool Picker::visit(SgShapeNode& node) {
-  // TODO
+  idCounter_++;
+  Cvec3 color = idToColor(idCounter_);
+
+  shared_ptr<SgNode> trNode = nodeStack_.back();
+  shared_ptr<SgRbtNode> rbtNode = dynamic_pointer_cast<SgRbtNode>(trNode);
+  addToMap(idCounter_, rbtNode);
+
+  // mouse 기반 노드 찾기
+  safe_glUniform3f(drawer_.getCurSS().h_uIdColor, color[0], color[1], color[2]);
+
   return drawer_.visit(node);
 }
 
 bool Picker::postVisit(SgShapeNode& node) {
-  // TODO
   return drawer_.postVisit(node);
 }
 
 shared_ptr<SgRbtNode> Picker::getRbtNodeAtXY(int x, int y) {
-  // TODO
-  return shared_ptr<SgRbtNode>(); // return null for now
+  PackedPixel pixel;
+  glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &pixel);
+  int id = colorToId(pixel);
+  cout << "getRbtNodeAtXY id: " << id << endl;
+  return find(id);
 }
 
 //------------------

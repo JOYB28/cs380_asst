@@ -279,14 +279,36 @@ inline Matrix4 normalMatrix(const Matrix4& m) {
   return transpose(invm);
 }
 
-// 구현해야함 (transformation, linear)
 inline Matrix4 transFact(const Matrix4& m) {
-  // TODO
+  Matrix4 t(0);
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      if (i == j) {
+        t(i, j) = 1;
+      } else if (j == 3) {
+        t(i, j) = m(i, j);
+      } else {
+        t(i, j) = 0;
+      }
+    }
+  }
+  return t;
 }
 
 inline Matrix4 linFact(const Matrix4& m) {
-  // TODO
+  Matrix4 l(0);
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      if (i < 3 && j < 3) {
+        l(i, j) = m(i, j);
+      } else if (i == 3 && j == 3) {
+        l(i, j) = 1;
+      } else {
+        l(i, j) = 0;
+      }
+    }
+  }
+  return l;
 }
 
 #endif
-

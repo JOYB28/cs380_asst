@@ -55,7 +55,9 @@ public:
 
   RigTForm operator * (const RigTForm& a) const {
     RigTForm result;
-    result.setTranslation(t_ + Cvec3(r_ * Cvec4(a.getTranslation(), 1)));
+    // r1t2
+    Quat r_result = r_ * Quat(0, a.getTranslation()) * inv(r_);
+    result.setTranslation(t_ + Cvec3(r_result[1], r_result[2], r_result[3]));
     result.setRotation(r_ * a.getRotation());
     return result;
   }
@@ -64,7 +66,9 @@ public:
 inline RigTForm inv(const RigTForm& tform) {
   RigTForm result;
   Quat inversedR = inv(tform.getRotation());
-  result.setTranslation(-Cvec3(inversedR * Cvec4(tform.getTranslation(), 1)));
+  // -r^-1t
+  Quat r_result = inv(tform.getRotation()) * Quat(0, -tform.getTranslation()) * tform.getRotation();
+  result.setTranslation(Cvec3(r_result[1], r_result[2], r_result[3]));
   result.setRotation(inversedR);
   return result;
 }

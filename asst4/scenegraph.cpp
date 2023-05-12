@@ -39,15 +39,24 @@ public:
     , found_(false) {}
 
   const RigTForm getAccumulatedRbt(int offsetFromStackTop = 0) {
-    // TODO
+    return rbtStack_[rbtStack_.size() - offsetFromStackTop - 1];
   }
 
   virtual bool visit(SgTransformNode& node) {
-    // TODO
+    if (rbtStack_.empty()) {
+      rbtStack_.push_back(node.getRbt());
+    } else {
+      rbtStack_.push_back(rbtStack_.back() * node.getRbt());
+    }
+
+    return node != target_;
   }
 
   virtual bool postVisit(SgTransformNode& node) {
-    // TODO
+    if (!rbtStack_.empty()) {
+      rbtStack_.pop_back();
+    }
+    return true;
   }
 };
 
