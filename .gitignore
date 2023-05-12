@@ -1,2 +1,4 @@
-asst6
+.idea
+.DS_Store
+
 *.o
