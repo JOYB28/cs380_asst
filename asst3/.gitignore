@@ -1,13 +1,5 @@
-.idea
-
-kaist_cs380_spring_2023_lab_3.pdf
-kaist_cs380_spring_2023_assignment_2.pdf
-kaist_cs380_spring_2023_assignment_3.pdf
-
 asst3_solution_bin_fixed
 asst3_solution_bin_fixed0409
-
 asst2
-asst2.o
 
-.DS_Store
+*.o
