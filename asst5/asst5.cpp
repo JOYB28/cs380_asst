@@ -42,6 +42,7 @@
 #include "drawer.h"
 #include "picker.h"
 #include "sgutils.h"
+#include "interpolation.h"
 
 using namespace std;      // for string, vector, iostream, and other standard C++ stuff
 // If your OS is LINUX, uncomment the line below.
@@ -102,6 +103,10 @@ static vector<shared_ptr<ShaderState> > g_shaderStates; // our global shader sta
 
 static list<vector<RigTForm> > g_keyFrames;
 static int g_currentKeyFrameIdx = -1;
+
+static int g_msBetweenKeyFrames = 2000;
+static int g_animateFramesPerSecond = 60;
+static bool g_playing = false;
 
 // --------- Geometry
 
@@ -794,7 +799,7 @@ static void newFrame() {
   // 중간에 넣는 경우
   else {
     int idxToInsert = g_currentKeyFrameIdx + 1;
-    auto iter = std::next(g_keyFrames.begin(), idxToInsert);
+    auto iter = next(g_keyFrames.begin(), idxToInsert);
     g_keyFrames.insert(iter, newFrame);
   }
 
@@ -806,7 +811,7 @@ static void newFrame() {
 }
 
 static vector<RigTForm>& getCurrentKeyFrame() {
-  auto iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+  auto iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx);
   return *iter;
 }
 
@@ -818,7 +823,7 @@ static void deleteFrame() {
   if (g_keyFrames.size() == 0) {
     cout << "cannot delete frame, keyFrames size is 0" << endl;
   } else {
-    auto iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+    auto iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx);
     g_keyFrames.erase(iter);
     --g_currentKeyFrameIdx;
 
@@ -878,10 +883,10 @@ static void replaceCurrentKeyFrameWithScene() {
       newFrame.push_back(rbtNodes[i]->getRbt());
     }
 
-    auto iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+    auto iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx);
     g_keyFrames.erase(iter);
     --g_currentKeyFrameIdx;
-    iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+    iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx);
     g_keyFrames.insert(iter, newFrame);
     ++g_currentKeyFrameIdx;
   } else {
@@ -1033,6 +1038,79 @@ static void readFromFile() {
   cout << "============== readFromFile()! end ==============" << endl;
 }
 
+static bool interpolateAndDisplay(float t) {
+  float alpha = t - (int)t;
+
+  cout << "interpolateAndDisplay! t: " << t << ", t0: " << (int)t << ", t1: " << (int)t + 1 << ", alpha: " << alpha << endl;
+
+  auto iter = next(g_keyFrames.begin(), (int) t);
+  vector<RigTForm> keyframe0 = *iter;
+  next(iter, 1);
+  vector<RigTForm> keyframe1 = *iter;
+
+  // 끝점일때 처리?
+
+  vector<RigTForm> interpolatedFrame;
+  for (int i = 0; i < keyframe0.size(); ++i) {
+    RigTForm interpolatedRbt = Interpolation::Linear(keyframe0[i], keyframe1[i], alpha);
+    interpolatedFrame.push_back(interpolatedRbt);
+  }
+
+  replaceSgNode(g_world, interpolatedFrame);
+  // glutPostRedisplay();
+}
+
+
+// Interpret "ms" as milliseconds into the animation
+static void animateTimerCallback(int ms) {
+  float t = (float)ms / (float)g_msBetweenKeyFrames;
+
+  bool endReached = interpolateAndDisplay(t);
+  if (!endReached) {
+    glutTimerFunc(
+      1000 / g_animateFramesPerSecond,
+      animateTimerCallback,
+      ms + 1000 / g_animateFramesPerSecond
+    );
+  } else {
+    // stop the animation
+    // after the animation is finished, set the current keyframe as (n-1)th keyframe amount [-1, n] keyframes.
+    g_playing = false;
+    g_currentKeyFrameIdx = g_keyFrames.size() - 1;
+    // glutPostRedisplay();
+  }
+}
+
+static void playOrStop() {
+  g_playing = !g_playing;
+  if (g_playing) {
+    animateTimerCallback(0);
+  }
+}
+
+static void speedUp() {
+  cout << "============== speedUp() start! ==============" << endl;
+  cout << "old g_msBetweenKeyFrames: " << g_msBetweenKeyFrames << endl;;
+
+  g_msBetweenKeyFrames -= 100;
+  if (g_msBetweenKeyFrames < 100) {
+    cout << "g_msBetweenKeyFrames is less than 100, so set 100" << endl;;
+    g_msBetweenKeyFrames = 100;
+  }
+
+  cout << "new g_msBetweenKeyFrames: " << g_msBetweenKeyFrames << endl;;
+  cout << "============== speedUp() end! ==============" << endl;
+}
+
+static void speedDown() {
+  cout << "============== speedDown() start! ==============" << endl;
+  cout << "old g_msBetweenKeyFrames: " << g_msBetweenKeyFrames << endl;;
+
+  g_msBetweenKeyFrames += 100;
+
+  cout << "new g_msBetweenKeyFrames: " << g_msBetweenKeyFrames << endl;;
+  cout << "============== speedDown() end! ==============" << endl;
+}
 
 static void keyboard(const unsigned char key, const int x, const int y) {
   switch (key) {
@@ -1142,6 +1220,24 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     {
       cout << "w pressed!" << endl;
       saveAsFile();
+      break;
+    }
+    case 'y':
+    {
+      cout << "y pressed!" << endl;
+      playOrStop();
+      break;
+    }
+    case '+':
+    {
+      cout << "+ pressed!" << endl;
+      speedUp();
+      break;
+    }
+    case '-':
+    {
+      cout << "- pressed!" << endl;
+      speedDown();
       break;
     }
   }
