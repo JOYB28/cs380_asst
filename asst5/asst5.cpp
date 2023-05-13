@@ -1041,23 +1041,42 @@ static void readFromFile() {
 static bool interpolateAndDisplay(float t) {
   float alpha = t - (int)t;
 
-  cout << "interpolateAndDisplay! t: " << t << ", t0: " << (int)t << ", t1: " << (int)t + 1 << ", alpha: " << alpha << endl;
+  cout << "================ interpolateAndDisplay! t: " << t << ", t0: " << (int)t << ", t1: " << (int)t + 1 << ", alpha: " << alpha << "===============" << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
 
+  cout << "hi1" << endl;
   auto iter = next(g_keyFrames.begin(), (int) t);
+  cout << "hi2" << endl;
+  // keyframe -1 제외 고려
+  iter = next(iter, 1);
+  cout << "hi3" << endl;
   vector<RigTForm> keyframe0 = *iter;
-  next(iter, 1);
+  cout << "hi4" << endl;
+  iter = next(iter, 1);
+  cout << "hi5" << endl;
   vector<RigTForm> keyframe1 = *iter;
+  cout << "hi6" << endl;
 
-  // 끝점일때 처리?
+  // 끝점일때 처리
+  iter = next(iter, 1);
+  cout << "hi7" << endl;
+  if (iter == g_keyFrames.end()) {
+    cout << "got the end!! stop!!" << endl;
+    return true;
+  }
+  cout << "hi8" << endl;
 
   vector<RigTForm> interpolatedFrame;
   for (int i = 0; i < keyframe0.size(); ++i) {
+    cout << "interpolatedFrame push back!" << endl;
     RigTForm interpolatedRbt = Interpolation::Linear(keyframe0[i], keyframe1[i], alpha);
     interpolatedFrame.push_back(interpolatedRbt);
   }
 
   replaceSgNode(g_world, interpolatedFrame);
-  // glutPostRedisplay();
+  glutPostRedisplay();
+
+  return false;
 }
 
 
