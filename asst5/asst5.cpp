@@ -11,6 +11,11 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
+#include <list>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
 // If your OS is LINUX, uncomment the line below.
 //#include <tr1/memory>
 
@@ -24,6 +29,7 @@
 #   include <GL/glut.h>
 #endif
 
+
 #include "cvec.h"
 #include "matrix4.h"
 #include "rigtform.h"
@@ -35,6 +41,7 @@
 #include "scenegraph.h"
 #include "drawer.h"
 #include "picker.h"
+#include "sgutils.h"
 
 using namespace std;      // for string, vector, iostream, and other standard C++ stuff
 // If your OS is LINUX, uncomment the line below.
@@ -68,7 +75,7 @@ static const float g_frustFar = -50.0;    // far plane
 static const float g_groundY = -2.0;      // y coordinate of the ground
 static const float g_groundSize = 10.0;   // half the ground length
 
-static int g_windowWidth = 512; // TODO: 512
+static int g_windowWidth = 1024; // TODO: 512
 static int g_windowHeight = 512; // TODO: 512
 static bool g_mouseClickDown = false;    // is the mouse button pressed
 // 왼쪽, 오른쪽, 스크롤(middle) 클릭
@@ -92,6 +99,9 @@ static const char * const g_shaderFilesGl2[g_numShaders][2] = {
 };
 
 static vector<shared_ptr<ShaderState> > g_shaderStates; // our global shader states
+
+static list<vector<RigTForm> > g_keyFrames;
+static int g_currentKeyFrameIdx = -1;
 
 // --------- Geometry
 
@@ -212,7 +222,6 @@ static double g_arcballScreenRadius = 0.25 * min(g_windowWidth, g_windowHeight);
 static double g_arcballScale = 0.01;
 
 ///////////////// END OF G L O B A L S //////////////////////////////////////////////////
-
 
 static void initGround() {
   // A x-z plane at y = g_groundY of dimension [-g_groundSize, g_groundSize]^2
@@ -738,7 +747,6 @@ static void motion(const int x, const int y) {
   g_mouseClickY = g_windowHeight - y - 1;
 }
 
-
 static void mouse(const int button, const int state, const int x, const int y) {
   cout << "mouse! button:" << button << " state:" << state << " x:" << x << " y:" << y << endl;
   g_mouseClickX = x;
@@ -762,15 +770,274 @@ static void mouse(const int button, const int state, const int x, const int y) {
   }
 
   // 마우스 떼졌을때 redraw
-  // TODO: 다시 uncomment
   glutPostRedisplay();
+}
+
+static void newFrame() {
+  cout << "============== newFrame()! start ==============" << endl;
+  cout << "current keyframe idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames sizes: " << g_keyFrames.size() << endl;
+
+  vector<shared_ptr<SgRbtNode> > rbtNodes;
+  dumpSgRbtNodes(g_world, rbtNodes);
+
+  vector<RigTForm> newFrame;
+  for (int i = 0; i < rbtNodes.size(); ++i) {
+    newFrame.push_back(rbtNodes[i]->getRbt());
+  }
+  // 비었거나 맨뒤
+  if (g_currentKeyFrameIdx == -1
+    || g_currentKeyFrameIdx == g_keyFrames.size() - 1
+  ) {
+    g_keyFrames.push_back(newFrame);
+  }
+  // 중간에 넣는 경우
+  else {
+    int idxToInsert = g_currentKeyFrameIdx + 1;
+    auto iter = std::next(g_keyFrames.begin(), idxToInsert);
+    g_keyFrames.insert(iter, newFrame);
+  }
+
+  ++g_currentKeyFrameIdx;
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+  cout << "============== newFrame()! end ==============" << endl;
+}
+
+static vector<RigTForm>& getCurrentKeyFrame() {
+  auto iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+  return *iter;
+}
+
+static void deleteFrame() {
+  cout << "============== deleteFrame()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  if (g_keyFrames.size() == 0) {
+    cout << "cannot delete frame, keyFrames size is 0" << endl;
+  } else {
+    auto iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+    g_keyFrames.erase(iter);
+    --g_currentKeyFrameIdx;
+
+    if (g_currentKeyFrameIdx == -1) {
+      if (g_keyFrames.size() == 0) {
+        g_currentKeyFrameIdx = -1;
+      } else {
+        g_currentKeyFrameIdx = 0;
+      }
+    }
+
+    if (g_currentKeyFrameIdx >= 0) {
+      cout << "replace with current keyFrame!" << endl;
+      replaceSgNode(g_world, getCurrentKeyFrame());
+      cout << "current keyFrame size: " << getCurrentKeyFrame().size() << endl;
+//      glutPostRedisplay();
+      cout << "replace with current keyFrame done " << endl;
+    } else {
+      // keyFrame이 없는 경우
+    }
+  }
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== deleteFrame()! end ==============" << endl;
+}
+
+static void replaceSceneWithCurrentKeyFrame() {
+  cout << "============== replaceSceneWithCurrentKeyFrame()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  if (g_currentKeyFrameIdx >= 0) {
+    cout << "replace with current keyFrame!" << endl;
+    replaceSgNode(g_world, getCurrentKeyFrame());
+  } else {
+    cout << "no current keyFrame to replace!" << endl;
+  }
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== replaceSceneWithCurrentKeyFrame()! end ==============" << endl;
+}
+
+static void replaceCurrentKeyFrameWithScene() {
+  cout << "============== replaceCurrentKeyFrameWithScene()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  if (g_currentKeyFrameIdx >= 0) {
+    cout << "copy current scene to current keyFrame" << endl;
+    vector<shared_ptr<SgRbtNode> > rbtNodes;
+    dumpSgRbtNodes(g_world, rbtNodes);
+
+    vector<RigTForm> newFrame;
+    for (int i = 0; i < rbtNodes.size(); ++i) {
+      newFrame.push_back(rbtNodes[i]->getRbt());
+    }
+
+    auto iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+    g_keyFrames.erase(iter);
+    --g_currentKeyFrameIdx;
+    iter = std::next(g_keyFrames.begin(), g_currentKeyFrameIdx);
+    g_keyFrames.insert(iter, newFrame);
+    ++g_currentKeyFrameIdx;
+  } else {
+    cout << "no current keyFrame to copy! Create new keyFrame instead" << endl;
+    newFrame();
+  }
+
+  if (g_currentKeyFrameIdx >= 0) {
+    cout << "replace with current keyFrame!" << endl;
+    replaceSgNode(g_world, getCurrentKeyFrame());
+  } else {
+    cout << "no current keyFrame to replace!" << endl;
+  }
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== replaceCurrentKeyFrameWithScene()! end ==============" << endl;
+}
+
+static void next() {
+  cout << "============== next()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  if (g_currentKeyFrameIdx < 0) {
+    cout <<"no currentKeyFrame, just return" << endl;
+    return;
+  } else if (g_currentKeyFrameIdx == g_keyFrames.size() - 1) {
+    cout <<"no next keyFrame, it's last. just return" << endl;
+    return;
+  } else {
+    ++g_currentKeyFrameIdx;
+    replaceSgNode(g_world, getCurrentKeyFrame());
+  }
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== next()! end ==============" << endl;
+}
+
+static void prev() {
+  cout << "============== prev()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  if (g_currentKeyFrameIdx < 0) {
+    cout <<"no currentKeyFrame, just return" << endl;
+    return;
+  } else if (g_currentKeyFrameIdx == 0) {
+    cout <<"no prev keyFrame, it's first. just return" << endl;
+    return;
+  } else {
+    --g_currentKeyFrameIdx;
+    replaceSgNode(g_world, getCurrentKeyFrame());
+  }
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== prev()! end ==============" << endl;
+}
+
+static void saveAsFile() {
+  cout << "============== saveAsFile()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  ofstream fout;
+  fout.open("keyframes.txt");
+  if (g_keyFrames.empty()) {
+    cout << "g_keyFrames is empty!" << g_keyFrames.size() << endl;
+    // do nothing
+  } else {
+    for (const auto& frame: g_keyFrames) {
+      for (int i = 0; i < frame.size(); ++i) {
+        RigTForm rbt = frame[i];
+        Cvec3 t = rbt.getTranslation();
+        Quat r = rbt.getRotation();
+        cout << "i: " << i << t[0] << ", " << t[1] << ", " << t[2] << ", " << r[0] << ", " << r[1] << ", " << r[2] << ", " << r[3] << endl;
+        fout << t[0] << ", " << t[1] << ", " << t[2] << ", " << r[0] << ", " << r[1] << ", " << r[2] << ", " << r[3] << "|";
+      }
+      fout << endl;
+    }
+  }
+  fout << endl;
+  fout.close();
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== saveAsFile()! end ==============" << endl;
+}
+
+static void readFromFile() {
+  cout << "============== readFromFile()! start ==============" << endl;
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrame sizes: " << g_keyFrames.size() << endl;
+
+  ifstream fin;
+  fin.open("keyframes.txt");
+
+  g_keyFrames.clear();
+
+  string line;
+  while (getline(fin, line)) {
+    if (line == "") {
+      break;
+    }
+    cout << "line: " << line << endl;
+
+    stringstream ss(line);
+    vector<string> rbts;
+    while (ss.good()) {
+      string rbtStr;
+      getline(ss, rbtStr, '|');
+      cout << "rbtStr: " << rbtStr << endl;
+      if (rbtStr != "") {
+        rbts.push_back(rbtStr);
+      }
+    }
+
+    vector<RigTForm> newFrame;
+    for (const auto& rbt: rbts) {
+      cout << "rbt: " << rbt << endl;
+      stringstream ss2(rbt);
+      vector<double> doubles;
+      while (ss2.good()) {
+        string doubleStr;
+        getline(ss2, doubleStr, ',');
+        cout << "doubleStr: " << doubleStr << endl;
+        if (doubleStr != "") {
+          doubles.push_back(stod(doubleStr));
+        }
+
+      }
+      RigTForm newRbt = RigTForm(Cvec3(doubles[0], doubles[1], doubles[2]), Quat(doubles[3], doubles[4], doubles[5], doubles[6]));
+      newFrame.push_back(newRbt);
+    }
+    g_keyFrames.push_back(newFrame);
+  }
+
+  if (!g_keyFrames.empty()) {
+    cout << "read result is larget than 1, so set currentKeyFramIdx to 0" << endl;
+    g_currentKeyFrameIdx = 0;
+  }
+
+  fin.close();
+
+  cout << "current keyFrame idx: " << g_currentKeyFrameIdx << endl;
+  cout << "current keyFrames size: " << g_keyFrames.size() << endl;
+  cout << "============== readFromFile()! end ==============" << endl;
 }
 
 
 static void keyboard(const unsigned char key, const int x, const int y) {
   switch (key) {
-    case 27:
-      exit(0);                                  // ESC
+    case 27: // ESC
+      exit(0);
     case 'h':
       cout << " ============== H E L P ==============\n\n"
            << "h\t\thelp menu\n"
@@ -803,10 +1070,6 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       }
       cout << "pickedRbt 초기화!" << endl;
       break;
-//    case 'o':
-//      g_currentManipulatedObjectIdx = (g_currentManipulatedObjectIdx + 1) % 3;
-//      cout << "현재 object: " << g_manipulatedObjectNames[g_currentManipulatedObjectIdx] << endl;
-//      break;
     case 'm':
       if (g_currentPickedRbtNode == g_nullRbtNode
         && g_eyeNames[g_currentEyeIdx] == "sky"
@@ -818,6 +1081,7 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       }
       break;
     case 'p':
+    {
       bool old_picking = g_picking;
       if (g_picking) {
         g_picking = false;
@@ -831,6 +1095,55 @@ static void keyboard(const unsigned char key, const int x, const int y) {
         cout << "picking start! g_picking: false -> true" << endl;
       }
       break;
+    }
+    case 32: // space
+    {
+      cout << "space pressed!" << endl;
+      replaceSceneWithCurrentKeyFrame();
+      break;
+    }
+    case 'u':
+    {
+      cout << "u pressed!" << endl;
+      replaceCurrentKeyFrameWithScene();
+      break;
+    }
+    case '>':
+    {
+      cout << "> pressed!" << endl;
+      next();
+      break;
+    }
+    case '<':
+    {
+      cout << "< pressed!" << endl;
+      prev();
+      break;
+    }
+    case 'd':
+    {
+      cout << "d pressed!" << endl;
+      deleteFrame();
+      break;
+    }
+    case 'n':
+    {
+      cout << "n pressed!" << endl;
+      newFrame();
+      break;
+    }
+    case 'i':
+    {
+      cout << "i pressed!" << endl;
+      readFromFile();
+      break;
+    }
+    case 'w':
+    {
+      cout << "w pressed!" << endl;
+      saveAsFile();
+      break;
+    }
   }
   glutPostRedisplay();
 }
