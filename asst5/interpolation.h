@@ -6,22 +6,35 @@
 namespace Interpolation {
 
 	// Linear interpolation of two coordinate vectors
-	// TODO: compute the linear interpolation of two Cvec3 inputs and return the result
 	inline Cvec3 lerp(const Cvec3& c0, const Cvec3& c1, const double& alpha) {
-		return Cvec3();	// Replace this value with your own code
+    double resultX = (1 - alpha) * c0[0] + alpha * c1[0];
+    double resultY = (1 - alpha) * c0[1] + alpha * c1[1];
+    double resultZ = (1 - alpha) * c0[2] + alpha * c1[2];
+    return Cvec3(resultX, resultY, resultZ);
 	}
 
 	// Spherical interpolation of two quaternions
-	// TODO: compute the spherical interpolation of two Quat inputs and return the result
 	inline Quat slerp(const Quat& q0, const Quat& q1, const double& alpha) {
-		return Quat();	// Replace this value with your own code
+//    Quat base = q1 * inv(q0);
+//    // conditionally negate
+//    if (base[0] < 0) {
+//      base = base * -1;
+//    }
+
+    // calculate quatAngle
+    double cosValue = dot(q0,q1);
+    double sinValue = norm(cross(Cvec3(q0[1], q0[2], q0[3]), Cvec3(q1[1], q1[2], q1[3])));
+
+    double quatAngle = atan2(sinValue, cosValue);
+    return q0.operator*(sin((1 - alpha) * quatAngle) / sin(quatAngle)) + q1.operator*(sin(alpha *quatAngle) / sin(quatAngle));
 	}
 
 	// Linear interpolation of two RigTForms
-	// TODO: compute the linear interpolation of two RigTForm inputs and return the result
 	// Note: you should use the lerp and slerp functions you implemented above
 	inline RigTForm Linear(const RigTForm& rbt0, const RigTForm& rbt1, const double& alpha) {
-		return RigTForm();	// Replace this value with your own code
+    Cvec3 t = lerp(rbt0.getTranslation(), rbt1.getTranslation(), alpha);
+    Quat r = slerp(rbt0.getRotation(), rbt1.getRotation(), alpha);
+		return RigTForm(t, r);	// Replace this value with your own code
 	}
 
 }
