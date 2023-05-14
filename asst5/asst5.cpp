@@ -886,8 +886,7 @@ static void replaceCurrentKeyFrameWithScene() {
     auto iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx);
     g_keyFrames.erase(iter);
     --g_currentKeyFrameIdx;
-    // 왜 -1 해줘야 잘되지?
-    iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx - 1);
+    iter = next(g_keyFrames.begin(), g_currentKeyFrameIdx + 1);
     g_keyFrames.insert(iter, newFrame);
     ++g_currentKeyFrameIdx;
   } else {
