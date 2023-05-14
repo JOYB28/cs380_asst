@@ -76,7 +76,7 @@ static const float g_frustFar = -50.0;    // far plane
 static const float g_groundY = -2.0;      // y coordinate of the ground
 static const float g_groundSize = 10.0;   // half the ground length
 
-static int g_windowWidth = 1024; // TODO: 512
+static int g_windowWidth = 512; // TODO: 512
 static int g_windowHeight = 512; // TODO: 512
 static bool g_mouseClickDown = false;    // is the mouse button pressed
 // 왼쪽, 오른쪽, 스크롤(middle) 클릭
