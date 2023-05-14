@@ -31,19 +31,20 @@ namespace Interpolation {
 
     // calculate quatAngle
     double cosValue = dot(q0,q1);
-    double sinValue = norm(cross(Cvec3(q0[1], q0[2], q0[3]), Cvec3(q1[1], q1[2], q1[3])));
+
+    double sinValue = norm2(q0 * q1);
+//    double sinValue = norm(cross(Cvec3(q0[1], q0[2], q0[3]), Cvec3(q1[1], q1[2], q1[3])));
 
     double quatAngle = atan2(sinValue, cosValue);
 
     Quat result;
-    std::cout << "quatAngle: " << quatAngle << std::endl;
+    std::cout << "quatAngle: " << quatAngle << ", cosValue: " << cosValue << ", sinValue: " << sinValue << std::endl;
     if (quatAngle == 0) {
       std::cout << "quatAngle is 0. Use q0 instead" << quatAngle << std::endl;
       result = q0;
     } else {
       result = q0.operator*(sin((1 - alpha) * quatAngle) / sin(quatAngle)) + q1.operator*(sin(alpha *quatAngle) / sin(quatAngle));
     }
-
 
     std::cout << "result.w: " << result[0] << ", result.x: " << result[1] << ", result.y: " << result[2] << ", result.z: " << result[3] << std::endl;
     return result;

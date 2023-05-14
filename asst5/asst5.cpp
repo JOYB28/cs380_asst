@@ -1061,7 +1061,7 @@ static bool interpolateAndDisplay(float t) {
   iter = next(iter, 1);
   cout << "hi7" << endl;
   if (iter == g_keyFrames.end()) {
-    cout << "got the end!! stop!!" << endl;
+    cout << "got the end!! stop!! g_currentKeyFrameIdx: " << g_currentKeyFrameIdx << "t: " << t <<  endl;
     return true;
   }
   cout << "hi8" << endl;
@@ -1073,8 +1073,12 @@ static bool interpolateAndDisplay(float t) {
     interpolatedFrame.push_back(interpolatedRbt);
   }
 
-  replaceSgNode(g_world, interpolatedFrame);
-  glutPostRedisplay();
+  if (g_playing) {
+    replaceSgNode(g_world, interpolatedFrame);
+    glutPostRedisplay();
+  } else {
+    cout << "g_playing: false, stop animation! (1)" << endl;
+  }
 
   return false;
 }
@@ -1086,22 +1090,37 @@ static void animateTimerCallback(int ms) {
 
   bool endReached = interpolateAndDisplay(t);
   if (!endReached) {
-    glutTimerFunc(
-      1000 / g_animateFramesPerSecond,
-      animateTimerCallback,
-      ms + 1000 / g_animateFramesPerSecond
-    );
+    if (g_playing) {
+      glutTimerFunc(
+        1000 / g_animateFramesPerSecond,
+        animateTimerCallback,
+        ms + 1000 / g_animateFramesPerSecond
+      );
+    }
+    else {
+      cout << "g_playing: false, stop animation! (2)" << endl;
+    }
   } else {
     // stop the animation
     // after the animation is finished, set the current keyframe as (n-1)th keyframe amount [-1, n] keyframes.
+    cout << "endReached! stop animation!" << endl;
     g_playing = false;
-    g_currentKeyFrameIdx = g_keyFrames.size() - 1;
-    // glutPostRedisplay();
+    g_currentKeyFrameIdx = g_keyFrames.size() - 2;
+    glutPostRedisplay();
   }
 }
 
 static void playOrStop() {
+  if (g_keyFrames.size() < 4) {
+    cout << "You need at least 4 keyframes to play! Return!" << endl;
+    g_playing = false;
+    return;
+  }
+
+  cout << "old g_playing: " << g_playing << endl;
   g_playing = !g_playing;
+  cout << "new g_playing: " << g_playing << endl;
+
   if (g_playing) {
     animateTimerCallback(0);
   }
