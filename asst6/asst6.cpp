@@ -76,7 +76,7 @@ static const float g_frustFar = -50.0;    // far plane
 static const float g_groundY = -2.0;      // y coordinate of the ground
 static const float g_groundSize = 10.0;   // half the ground length
 
-static int g_windowWidth = 512; // TODO: 512
+static int g_windowWidth = 1024; // TODO: 512
 static int g_windowHeight = 512; // TODO: 512
 static bool g_mouseClickDown = false;    // is the mouse button pressed
 // 왼쪽, 오른쪽, 스크롤(middle) 클릭
@@ -183,7 +183,7 @@ typedef SgGeometryShapeNode<Geometry> MyShapeNode;
 // ===================================================================
 
 static shared_ptr<SgRootNode> g_world;
-static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node;
+static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node, g_airplaneNode;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode; // used later when you do picking
 static shared_ptr<SgRbtNode> g_nullRbtNode = shared_ptr<SgRbtNode>();
 
@@ -649,13 +649,13 @@ static void motion(const int x, const int y) {
     // eye가 sky
     if (g_currentEyeIdx == 0) {
       auxFrame = inv(getPathAccumRbt(g_world, g_currentPickedRbtNode, 1))
-        * transFact(getPathAccumRbt(g_world, g_currentPickedRbtNode))
-        * linFact(getPathAccumRbt(g_world, g_skyNode));
+                 * transFact(getPathAccumRbt(g_world, g_currentPickedRbtNode))
+                 * linFact(getPathAccumRbt(g_world, g_skyNode));
     }
-    // eye가 다른 robot
+      // eye가 다른 robot
     else {
       auxFrame = inv(getPathAccumRbt(g_world, g_currentPickedRbtNode, 1))
-        * getPathAccumRbt(g_world, g_currentPickedRbtNode);
+                 * getPathAccumRbt(g_world, g_currentPickedRbtNode);
     }
   }
 
@@ -792,11 +792,11 @@ static void newFrame() {
   }
   // 비었거나 맨뒤
   if (g_currentKeyFrameIdx == -1
-    || g_currentKeyFrameIdx == g_keyFrames.size() - 1
-  ) {
+      || g_currentKeyFrameIdx == g_keyFrames.size() - 1
+    ) {
     g_keyFrames.push_back(newFrame);
   }
-  // 중간에 넣는 경우
+    // 중간에 넣는 경우
   else {
     int idxToInsert = g_currentKeyFrameIdx + 1;
     auto iter = next(g_keyFrames.begin(), idxToInsert);
@@ -1188,8 +1188,8 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       break;
     case 'm':
       if (g_currentPickedRbtNode == g_nullRbtNode
-        && g_eyeNames[g_currentEyeIdx] == "sky"
-      ) {
+          && g_eyeNames[g_currentEyeIdx] == "sky"
+        ) {
         g_currentSkyFrame = (g_currentSkyFrame + 1) % 2;
         cout << "현재 sky frame: " << g_skyFrameNames[g_currentSkyFrame] << endl;
       } else {
@@ -1397,6 +1397,65 @@ static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color)
   }
 }
 
+static void constructAirplane(shared_ptr<SgTransformNode> base, const Cvec3& color) {
+
+  const double BODY_WIDTH = 0.3,
+    BODY_LEN = 2,
+    BODY_THICK = 0.25,
+    WING_WIDTH = 2,
+    WING_LEN = 0.5,
+    WING_THICK = 0.25,
+    TAIL_WIDTH = 1,
+    TAIL_LEN = 0.25,
+    TAIL_THICK = 0.3;
+
+  const int NUM_JOINTS = 3,
+    NUM_SHAPES = 3;
+
+  struct JointDesc {
+      int parent;
+      float x, y, z;
+  };
+
+  JointDesc jointDesc[NUM_JOINTS] = {
+    {-1}, // body
+    {0, 0, BODY_LEN/10, BODY_THICK/3}, // wing
+    {0, 0, -BODY_LEN/2, 0}, // tail
+  };
+
+  struct ShapeDesc {
+      int parentJointId;
+      float x, y, z, sx, sy, sz;
+      shared_ptr<Geometry> geometry;
+  };
+
+  ShapeDesc shapeDesc[NUM_SHAPES] = {
+    {0, 0, 0, 0, BODY_WIDTH, BODY_LEN, BODY_THICK, g_cube}, // body
+    {1, 0, 0, 0, WING_WIDTH, WING_LEN, WING_THICK, g_cube}, // wing
+    {2, 0, 0, 0, TAIL_WIDTH, TAIL_LEN, TAIL_THICK, g_cube }
+  };
+
+  shared_ptr<SgTransformNode> jointNodes[NUM_JOINTS];
+
+  for (int i = 0; i < NUM_JOINTS; ++i) {
+    if (jointDesc[i].parent == -1)
+      jointNodes[i] = base;
+    else {
+      jointNodes[i].reset(new SgRbtNode(RigTForm(Cvec3(jointDesc[i].x, jointDesc[i].y, jointDesc[i].z))));
+      jointNodes[jointDesc[i].parent]->addChild(jointNodes[i]);
+    }
+  }
+  for (int i = 0; i < NUM_SHAPES; ++i) {
+    shared_ptr<MyShapeNode> shape(
+      new MyShapeNode(shapeDesc[i].geometry,
+                      color,
+                      Cvec3(shapeDesc[i].x, shapeDesc[i].y, shapeDesc[i].z),
+                      Cvec3(0, 0, 0),
+                      Cvec3(shapeDesc[i].sx, shapeDesc[i].sy, shapeDesc[i].sz)));
+    jointNodes[shapeDesc[i].parentJointId]->addChild(shape);
+  }
+}
+
 static void initScene() {
   g_world.reset(new SgRootNode());
 
@@ -1407,16 +1466,20 @@ static void initScene() {
   g_groundNode->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_ground, Cvec3(0.1, 0.95, 0.1))));
 
-  g_robot1Node.reset(new SgRbtNode(RigTForm(Cvec3(-2, 1, 0))));
-  g_robot2Node.reset(new SgRbtNode(RigTForm(Cvec3(2, 1, 0))));
+//  g_robot1Node.reset(new SgRbtNode(RigTForm(Cvec3(-2, 1, 0))));
+//  g_robot2Node.reset(new SgRbtNode(RigTForm(Cvec3(2, 1, 0))));
+  g_airplaneNode.reset(new SgRbtNode(RigTForm(Cvec3(-2, 1, 0))));
 
-  constructRobot(g_robot1Node, Cvec3(1, 0, 0)); // a Red robot
-  constructRobot(g_robot2Node, Cvec3(0, 0, 1)); // a Blue robot
+//  constructRobot(g_robot1Node, Cvec3(1, 0, 0)); // a Red robot
+//  constructRobot(g_robot2Node, Cvec3(0, 0, 1)); // a Blue robot
+
+  constructAirplane(g_airplaneNode, Cvec3(0, 0, 1)); // airplane
 
   g_world->addChild(g_skyNode);
   g_world->addChild(g_groundNode);
-  g_world->addChild(g_robot1Node);
-  g_world->addChild(g_robot2Node);
+  g_world->addChild(g_airplaneNode);
+//  g_world->addChild(g_robot1Node);
+//  g_world->addChild(g_robot2Node);
 }
 
 int main(int argc, char *argv[]) {
