@@ -122,7 +122,6 @@ namespace Interpolation {
         alpha
       );
 
-//      Quat r = slerp(rbt0.getRotation(), rbt1.getRotation(), alpha);
       Quat r = catmullRom(
         rbt_1.getRotation(),
         rbt0.getRotation(),
