@@ -1032,6 +1032,7 @@ static bool interpolateAndDisplay(float t) {
 
   cout << "hi1" << endl;
   auto iter = next(g_keyFrames.begin(), (int) t);
+  vector<RigTForm> keyframe_1 = *iter;
   cout << "hi2" << endl;
   // keyframe -1 제외 고려
   iter = next(iter, 1);
@@ -1050,12 +1051,19 @@ static bool interpolateAndDisplay(float t) {
     cout << "got the end!! stop!! g_currentKeyFrameIdx: " << g_currentKeyFrameIdx << "t: " << t <<  endl;
     return true;
   }
+  vector<RigTForm> keyframe2 = *iter;
   cout << "hi8" << endl;
 
   vector<RigTForm> interpolatedFrame;
   for (int i = 0; i < keyframe0.size(); ++i) {
     cout << "interpolatedFrame push back!" << endl;
-    RigTForm interpolatedRbt = Interpolation::Linear(keyframe0[i], keyframe1[i], alpha);
+    RigTForm interpolatedRbt = Interpolation::CatmullRom(
+      keyframe_1[i],
+      keyframe0[i],
+      keyframe1[i],
+      keyframe2[i],
+      alpha
+    );
     interpolatedFrame.push_back(interpolatedRbt);
   }
 

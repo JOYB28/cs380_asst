@@ -154,4 +154,17 @@ inline Matrix4 quatToMatrix(const Quat& q) {
   return r;
 }
 
+inline Quat pow(const Quat& q, const double a) {
+  Cvec3 k = Cvec3(q[1], q[2], q[3]);
+  double angle =  atan2(sqrt(norm2(k)), q[0]);
+
+  double resultW = cos(a * angle);
+  double resultX = sin(a * angle) * k[0] / sqrt(norm2(k));
+  double resultY = sin(a * angle) * k[1] / sqrt(norm2(k));
+  double resultZ = sin(a * angle) * k[2] / sqrt(norm2(k));
+
+  // TODO: normalize??
+  return Quat(resultW, resultX, resultY, resultZ);
+}
+
 #endif
