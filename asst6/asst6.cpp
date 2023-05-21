@@ -207,18 +207,14 @@ static Cvec3f g_arcballColor = Cvec3f(0, 1, 0);
 //static RigTForm g_currentObjectRbt = g_objectRbt[0];
 
 static RigTForm g_currentEyeRbt;
-// 0: sky, 1: robot1, 2: robot2
+// 0: sky, 1: airplane
 static int g_currentEyeIdx = 0;
-static string g_eyeNames[3] = {"sky", "robot1", "robot2"};
+static string g_eyeNames[2] = {"sky", "airplane"};
 
-static int g_manipulatedObject[3] = {
+static int g_manipulatedObject[2] = {
   -1,
   0,
-  1,
 };
-// 이제 쓸 필요없을듯
-//static int g_currentManipulatedObjectIdx = 0; // 0: sky, 1: robot1, 2: robot2
-//static string g_manipulatedObjectNames[3] = {"sky", "robot1", "robot2"};
 
 static int g_currentSkyFrame = 1; // 0: world-sky, 1: sky-sky
 static string g_skyFrameNames[2] = {"world-sky", "sky-sky"};
@@ -299,14 +295,9 @@ static void drawStuff(const ShaderState& curSS, bool picking, string context) {
   // use the skyRbt as the eyeRbt (스카이캠) Rbt body transformation
   // -- 과제하기 위해 eye frame을 바꿔야함
   if (g_currentEyeIdx == 0) {
-//    g_currentEyeRbt = g_skyRbt;
     g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
-  } else if (g_currentEyeIdx == 1) {
-//    g_currentEyeRbt = g_objectRbt[0];
-    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot1Node);
   } else {
-//    g_currentEyeRbt = g_objectRbt[1];
-    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot2Node);
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_airplaneNode);
   }
   const RigTForm eyeRbt = g_currentEyeRbt;
 //  cout << "eyeRbt x: " << eyeRbt.getTranslation()[0] << ", y: " << eyeRbt.getTranslation()[1] << ", z: " << eyeRbt.getTranslation()[2] << endl;
@@ -549,14 +540,9 @@ static void motion(const int x, const int y) {
 
   RigTForm auxFrame;
   if (g_currentEyeIdx == 0) {
-//    g_currentEyeRbt = g_skyRbt;
     g_currentEyeRbt = g_skyNode->getRbt();
-  } else if (g_currentEyeIdx == 1) {
-//    g_currentEyeRbt = g_objectRbt[0];
-    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot1Node);
   } else {
-//    g_currentEyeRbt = g_objectRbt[1];
-    g_currentEyeRbt = getPathAccumRbt(g_world, g_robot2Node);
+    g_currentEyeRbt = getPathAccumRbt(g_world, g_airplaneNode);
   }
 
   bool arcballRotation = false;
@@ -1171,15 +1157,12 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       g_activeShader ^= 1;
       break;
     case 'v':
-      g_currentEyeIdx = (g_currentEyeIdx + 1) % 3;
+      g_currentEyeIdx = (g_currentEyeIdx + 1) % 2;
       cout << "현재 eye: " << g_eyeNames[g_currentEyeIdx] << endl;
 
       if (g_currentEyeIdx == 1) {
-        cout << "eye가 robot이라서 pickedRbtNode를 robot1로 업데이트!" << endl;
-        g_currentPickedRbtNode = g_robot1Node;
-      } else if (g_currentEyeIdx == 2) {
-        cout << "eye가 robot이라서 pickedRbtNode를 robot2로 업데이트!" << endl;
-        g_currentPickedRbtNode = g_robot2Node;
+        cout << "eye가 airplane이라서 pickedRbtNode를 airplane으로 업데이트!" << endl;
+        g_currentPickedRbtNode = g_airplaneNode;
       } else {
         // eye가 sky가 될때 초기화
         g_currentPickedRbtNode = g_nullRbtNode;
@@ -1432,7 +1415,7 @@ static void constructAirplane(shared_ptr<SgTransformNode> base, const Cvec3& col
   ShapeDesc shapeDesc[NUM_SHAPES] = {
     {0, 0, 0, 0, BODY_WIDTH, BODY_LEN, BODY_THICK, g_cube}, // body
     {1, 0, 0, 0, WING_WIDTH, WING_LEN, WING_THICK, g_cube}, // wing
-    {2, 0, 0, 0, TAIL_WIDTH, TAIL_LEN, TAIL_THICK, g_cube }
+    {2, 0, 0, 0, TAIL_WIDTH, TAIL_LEN, TAIL_THICK, g_cube } // tail
   };
 
   shared_ptr<SgTransformNode> jointNodes[NUM_JOINTS];
