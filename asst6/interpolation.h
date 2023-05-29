@@ -2,6 +2,7 @@
 #define INTERPOLATION_H
 
 #include "rigtform.h"
+#include "quat.h"
 
 namespace Interpolation {
 
@@ -19,12 +20,6 @@ namespace Interpolation {
 
     // Spherical interpolation of two quaternions
     inline Quat slerp(const Quat& q0, const Quat& q1, const double& alpha) {
-//    Quat base = q1 * inv(q0);
-//    // conditionally negate
-//    if (base[0] < 0) {
-//      base = base * -1;
-//    }
-
       std::cout << "slerp! alpha: " << alpha << std::endl;
       std::cout << "q0.w: " << q0[0] << ", q0.x: " << q0[1] << ", q0.y: " << q0[2] << ", q0.z: " << q0[3] << std::endl;
       std::cout << "q1.w: " << q1[0] << ", q1.x: " << q1[1] << ", q1.y: " << q1[2] << ", q1.z: " << q1[3] << std::endl;
@@ -55,16 +50,88 @@ namespace Interpolation {
     inline RigTForm Linear(const RigTForm& rbt0, const RigTForm& rbt1, const double& alpha) {
       Cvec3 t = lerp(rbt0.getTranslation(), rbt1.getTranslation(), alpha);
       Quat r = slerp(rbt0.getRotation(), rbt1.getRotation(), alpha);
-      return RigTForm(t, r);	// Replace this value with your own code
+      return RigTForm(t, r);
     }
 
-	// Catmull-Rom interpolation of two RigTForms
-	// TODO: compute the Catmull-Rom interpolation of four RigTForm inputs and return the result
-	// Note: To Catmull-Rom interpolate two RigTFrom rbt0 and rbt1, we need 4 Keyframes keyframe rbt_1, rbt0, rbt1, rbt2.
-	// 		 You can use the lerp and slerp functions you implemented above.
-	inline RigTForm CatmullRom(const RigTForm& rbt_1, const RigTForm& rbt0, const RigTForm& rbt1, const RigTForm& rbt2, const double& alpha) {
-		return RigTForm();	// Replace this value with your own code
-	}
+    inline Cvec3 catmullRom(Cvec3 c_1, Cvec3 c0, Cvec3 c1, Cvec3 c2, double alpha) {
+      Cvec3 d = (c1 - c_1) * (1.0 / 6.0) + c0;
+      Cvec3 e = (c0 - c2) * (1.0 / 6.0) + c1;
+
+      Cvec3 p01 = lerp(c0, d, alpha);
+      Cvec3 p12 = lerp(d, e, alpha);
+      Cvec3 p23 = lerp(e, c1, alpha);
+      Cvec3 p012 = lerp(p01, p12, alpha);
+      Cvec3 p123 = lerp(p12, p23, alpha);
+      Cvec3 p = lerp(p012, p123, alpha);
+
+      return p;
+    }
+
+    inline Quat controlPoint(Quat q_1, Quat q0, Quat q1, double sign) {
+      std::cout << "[controlPoint] start!" << std::endl;
+      std::cout << "q_1.w: " << q_1[0] << ", q_1.x: " << q_1[1] << ", q_1.y: " << q_1[2] << ", q_1.z: " << q_1[3] << std::endl;
+      std::cout << "q0.w: " << q0[0] << ", q0.x: " << q0[1] << ", q0.y: " << q0[2] << ", q0.z: " << q0[3] << std::endl;
+      std::cout << "q1.w: " << q1[0] << ", q1.x: " << q1[1] << ", q1.y: " << q1[2] << ", q1.z: " << q1[3] << std::endl;
+
+      // 같은 경우
+      if (q_1[0] == q1[0]
+        && q_1[1] == q1[1]
+        && q_1[2] == q1[2]
+        && q_1[3] == q1[3]
+      ) {
+        std::cout << "[controlPoint] identity!" << std::endl;
+        return q0;
+      }
+      Quat base = q1 * inv(q_1);
+
+      // conditionally negate
+      if (base[0] < 0) {
+        std::cout << "[controlPoint] conditionally negate!" << std::endl;
+        base = base * -1;
+      }
+
+      std::cout << "[controlPoint] !!" << std::endl;
+      return pow(base, 1.0 / 6.0 * sign) * q0;
+    }
+
+    inline Quat catmullRom(Quat q_1, Quat q0, Quat q1, Quat q2, double alpha) {
+      // d = (q1 * inv(q-1)) ^ 1/6 * q0
+      // e = (q2 * inv(q0)) ^ -1/6 * q1
+      Quat d = controlPoint(q_1, q0, q1, 1.0);
+      Quat e = controlPoint(q0, q1, q2, -1.0);
+
+      Quat p01 = slerp(q0, d, alpha);
+      Quat p12 = slerp(d, e, alpha);
+      Quat p23 = slerp(e, q1, alpha);
+      Quat p012 = slerp(p01, p12, alpha);
+      Quat p123 = slerp(p12, p23, alpha);
+      Quat p = slerp(p012, p123, alpha);
+
+      return p;
+    }
+
+    // Catmull-Rom interpolation of two RigTForms
+    // Note: To Catmull-Rom interpolate two RigTFrom rbt0 and rbt1, we need 4 Keyframes keyframe rbt_1, rbt0, rbt1, rbt2.
+    // 		 You can use the lerp and slerp functions you implemented above.
+    inline RigTForm CatmullRom(const RigTForm& rbt_1, const RigTForm& rbt0, const RigTForm& rbt1, const RigTForm& rbt2, const double& alpha) {
+      Cvec3 t = catmullRom(
+        rbt_1.getTranslation(),
+        rbt0.getTranslation(),
+        rbt1.getTranslation(),
+        rbt2.getTranslation(),
+        alpha
+      );
+
+      Quat r = catmullRom(
+        rbt_1.getRotation(),
+        rbt0.getRotation(),
+        rbt1.getRotation(),
+        rbt2.getRotation(),
+        alpha
+      );
+
+      return RigTForm(t, r);
+    }
 
 }
 #endif
