@@ -32,8 +32,11 @@ namespace Interpolation {
     // calculate quatAngle
     double cosValue = dot(q0,q1);
 
-    double sinValue = norm2(q0 * q1);
-//    double sinValue = norm(cross(Cvec3(q0[1], q0[2], q0[3]), Cvec3(q1[1], q1[2], q1[3])));
+    // 혹은 sin(x)^2 + cos(x)^2 = 1 을 이용해서 해도 될듯
+    // 내가 했던 sinValue2는 어떻게 나온건지 기억이 안남..
+    double sinValue2 = norm2(q0 * q1);
+    // 차라리 아래처럼 sin = (q0 x q1) / |q0 x q1| 으로 하면 되는데 과제할때 이게 안돼서 여러가지 해보다가 된듯..
+    double sinValue = norm(cross(Cvec3(q0[1], q0[2], q0[3]), Cvec3(q1[1], q1[2], q1[3])));
 
     double quatAngle = atan2(sinValue, cosValue);
 
