@@ -99,25 +99,13 @@ static shared_ptr<SgRootNode> g_world;
 static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode; // used later when you do picking
 static shared_ptr<SgRbtNode> g_nullRbtNode = shared_ptr<SgRbtNode>();
+static shared_ptr<SgRbtNode> g_light1Node, g_light2Node;
 
 // Vertex buffer and index buffer associated with the ground and cube geometry
 static shared_ptr<Geometry> g_ground, g_cube, g_cube2, g_sphere;
 
 // --------- Scene
-
-static const Cvec3 g_light1(2.0, 3.0, 14.0), g_light2(-2, -3.0, -5.0);  // define two lights positions in world space
-//static RigTForm g_skyRbt = RigTForm(Cvec3(0.0, 0.25, 4.0));
-//static RigTForm g_objectRbt[2] = {
-//  RigTForm(Cvec3(0.75, 0, 0)),
-//  RigTForm(Cvec3(-0.75, 0, 0)),
-//};
-//static Cvec3f g_objectColors[2] = {
-//  Cvec3f(1, 0, 0),
-//  Cvec3f(0, 0, 1),
-//};
 static Cvec3f g_arcballColor = Cvec3f(0, 1, 0);
-
-//static RigTForm g_currentObjectRbt = g_objectRbt[0];
 
 static RigTForm g_currentEyeRbt;
 // 0: sky, 1: robot1, 2: robot2
@@ -226,11 +214,11 @@ static void drawStuff(bool picking, string context) {
 //  cout << "eyeRbt x: " << eyeRbt.getTranslation()[0] << ", y: " << eyeRbt.getTranslation()[1] << ", z: " << eyeRbt.getTranslation()[2] << endl;
   const RigTForm invEyeRbt = inv(eyeRbt);
 
-  const Cvec3 eyeLight1 = Cvec3(invEyeRbt * Cvec4(g_light1, 1)); // g_light1 position in eye coordinates
-  const Cvec3 eyeLight2 = Cvec3(invEyeRbt * Cvec4(g_light2, 1)); // g_light2 position in eye coordinates
+  const Cvec3 light1 = getPathAccumRbt(g_world, g_light1Node).getTranslation();
+  const Cvec3 light2 = getPathAccumRbt(g_world, g_light2Node).getTranslation();
   // send the eye space coordinates of lights to uniforms
-  uniforms.put("uLight", eyeLight1);
-  uniforms.put("uLight2", eyeLight2);
+  uniforms.put("uLight", Cvec3(invEyeRbt * Cvec4(light1, 1)));
+  uniforms.put("uLight2", Cvec3(invEyeRbt * Cvec4(light2, 1)));
 
   if (!picking) {
     // initialize the drawer with our uniforms, as opposed to curSS
@@ -817,10 +805,21 @@ static void initScene() {
   constructRobot(g_robot1Node, g_redDiffuseMat); // a Red robot
   constructRobot(g_robot2Node, g_blueDiffuseMat); // a Blue robot
 
+  // static const Cvec3 g_light1(2.0, 3.0, 14.0), g_light2(-2, -3.0, -5.0);  // define two lights positions in world space
+  g_light1Node.reset(new SgRbtNode(RigTForm(Cvec3(2.5, 4, -5))));
+  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(-2.5, 4, 5))));
+
+  g_light1Node->addChild(shared_ptr<MyShapeNode>(
+    new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
+  g_light2Node->addChild(shared_ptr<MyShapeNode>(
+    new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
+
   g_world->addChild(g_skyNode);
   g_world->addChild(g_groundNode);
   g_world->addChild(g_robot1Node);
   g_world->addChild(g_robot2Node);
+  g_world->addChild(g_light1Node);
+  g_world->addChild(g_light2Node);
 
   cout << "getPathAccumRbt debug 10" << endl;
   g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
