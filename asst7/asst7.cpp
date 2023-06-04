@@ -200,18 +200,17 @@ static void drawStuff(bool picking, string context) {
   // use the skyRbt as the eyeRbt (스카이캠) Rbt body transformation
   // -- 과제하기 위해 eye frame을 바꿔야함
   if (g_currentEyeIdx == 0) {
-    cout << "getPathAccumRbt debug 1" << endl;
+//    cout << "getPathAccumRbt debug 1" << endl;
     g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
   } else if (g_currentEyeIdx == 1) {
-    cout << "getPathAccumRbt debug 2" << endl;
+//    cout << "getPathAccumRbt debug 2" << endl;
     g_currentEyeRbt = getPathAccumRbt(g_world, g_robot1Node);
   } else {
-    cout << "getPathAccumRbt debug 3" << endl;
+//    cout << "getPathAccumRbt debug 3" << endl;
     g_currentEyeRbt = getPathAccumRbt(g_world, g_robot2Node);
   }
 
   const RigTForm eyeRbt = g_currentEyeRbt;
-//  cout << "eyeRbt x: " << eyeRbt.getTranslation()[0] << ", y: " << eyeRbt.getTranslation()[1] << ", z: " << eyeRbt.getTranslation()[2] << endl;
   const RigTForm invEyeRbt = inv(eyeRbt);
 
   const Cvec3 light1 = getPathAccumRbt(g_world, g_light1Node).getTranslation();
@@ -234,7 +233,7 @@ static void drawStuff(bool picking, string context) {
     string currentEyeName = g_eyeNames[g_currentEyeIdx];
     string currentSkyFrame = g_skyFrameNames[g_currentSkyFrame];
     if (g_currentPickedRbtNode != g_nullRbtNode || (currentEyeName == "sky" && currentSkyFrame == "world-sky")) {
-      cout << "getPathAccumRbt debug 4" << endl;
+//      cout << "getPathAccumRbt debug 4" << endl;
       RigTForm arcballPlace;
       if (currentEyeName == "sky" && currentSkyFrame == "world-sky") {
         // world-sky 프레임이라고 가정할 수 있음
@@ -395,10 +394,10 @@ static void motion(const int x, const int y) {
   if (g_currentEyeIdx == 0) {
     g_currentEyeRbt = g_skyNode->getRbt();
   } else if (g_currentEyeIdx == 1) {
-    cout << "getPathAccumRbt debug 5" << endl;
+//    cout << "getPathAccumRbt debug 5" << endl;
     g_currentEyeRbt = getPathAccumRbt(g_world, g_robot1Node);
   } else {
-    cout << "getPathAccumRbt debug 6" << endl;
+//    cout << "getPathAccumRbt debug 6" << endl;
     g_currentEyeRbt = getPathAccumRbt(g_world, g_robot2Node);
   }
 
@@ -415,7 +414,7 @@ static void motion(const int x, const int y) {
       centerOfArcball = Cvec3(0, 0, 0);
     } else {
       // object
-      cout << "getPathAccumRbt debug 7" << endl;
+//      cout << "getPathAccumRbt debug 7" << endl;
       centerOfArcball = getPathAccumRbt(g_world, g_currentPickedRbtNode).getTranslation();
     }
 
@@ -438,13 +437,9 @@ static void motion(const int x, const int y) {
     Cvec3 arcballVector0 = normalize(arcballPoint0 - centerOfArcball);
     Cvec3 arcballVector1 = normalize(arcballPoint1 - centerOfArcball);
     Quat quatVector0 = Quat(0, arcballVector0);
-//    cout << "quatVector0 i: " << arcballVector0[1] << ", j: " << arcballVector0[2] << ", k: " << arcballVector0[3] << ", w: " << arcballVector0[0] << endl;
     Quat quatVector1 = Quat(0, arcballVector1);
-//    cout << "quatVector1 i: " << arcballVector1[1] << ", j: " << arcballVector1[2] << ", k: " << arcballVector1[3] << ", w: " << arcballVector1[0] << endl;
 
-//    cout << "arcballRotation: true" << endl;
     arcballRotation = true;
-//    if (manipulatedObjectName == "sky")
     if (g_currentPickedRbtNode == g_nullRbtNode) {
       // world-sky 프레임이라고 가정할 수 있음
       arcballRotationRbt.setRotation(quatVector1 * (quatVector0 * -1));
@@ -461,36 +456,32 @@ static void motion(const int x, const int y) {
     // object가 sky
     cout << "object is sky!!" << endl;
     if (g_currentEyeIdx != 0) {
-      cout << "debug1" << endl;
       // eye frame이 sky가 아닌 경우
       return;
     }
     else if (g_skyFrameNames[g_currentSkyFrame] == "world-sky") {
-      cout << "debug2" << endl;
       // world-sky
       cout << "eye is world-sky!!" << endl;
       auxFrame = linFact(g_skyNode->getRbt());
     } else {
-      cout << "debug3" << endl;
       // sky-sky
       cout << "eys is sky-sky!!" << endl;
       auxFrame = transFact(g_skyNode->getRbt()) * linFact(g_skyNode->getRbt());
     }
   }
   else {
-    cout << "debug4" << endl;
     // object가 sky가 아님 (로봇 등)
     cout << "object is not sky!!" << endl;
     // eye가 sky
     if (g_currentEyeIdx == 0) {
-      cout << "getPathAccumRbt debug 8" << endl;
+//      cout << "getPathAccumRbt debug 8" << endl;
       auxFrame = inv(getPathAccumRbt(g_world, g_currentPickedRbtNode, 1))
         * transFact(getPathAccumRbt(g_world, g_currentPickedRbtNode))
         * linFact(getPathAccumRbt(g_world, g_skyNode));
     }
     // eye가 다른 robot
     else {
-      cout << "getPathAccumRbt debug 9" << endl;
+//      cout << "getPathAccumRbt debug 9" << endl;
       auxFrame = inv(getPathAccumRbt(g_world, g_currentPickedRbtNode, 1))
         * getPathAccumRbt(g_world, g_currentPickedRbtNode);
     }
@@ -498,60 +489,33 @@ static void motion(const int x, const int y) {
 
   RigTForm m;
   if (g_mouseLClickButton && !g_mouseRClickButton) { // left button down?
-    cout << "debut AA" << endl;
     if (arcballRotation) {
-      cout << "debut A1" << endl;
       m = arcballRotationRbt;
     } else {
-      cout << "debut A2" << endl;
-      // 둘중에 하나임
       m = RigTForm(Quat::makeXRotation(dy) * Quat::makeYRotation(-dx));
     }
   } else if (g_mouseRClickButton && !g_mouseLClickButton) { // right button down?
-    cout << "debut CC" << endl;
-//    cout << "g_arcballScale1: " << g_arcballScale << endl;
-    // world-sky이면서, object, eye 둘다 sky
     if (currentEyeName == "sky" && currentSkyFrame == "world-sky") {
-      cout << "debut C1" << endl;
-//    if (g_eyeNames[g_currentEyeIdx] == "sky"
-//      && g_manipulatedObjectNames[g_currentManipulatedObjectIdx] == "sky"
-//      && g_skyFrameNames[g_currentSkyFrame] == "world-sky"
-//    ) {
       m = RigTForm(Cvec3(-dx, -dy, 0) * g_arcballScale);
     } else {
-      cout << "debut C2" << endl;
       m = RigTForm(Cvec3(dx, dy, 0) * g_arcballScale);
     }
   } else if (g_mouseMClickButton || (g_mouseLClickButton && g_mouseRClickButton)) {  // middle or (left and right) button down?
-    cout << "debut B" << endl;
-//    cout << "g_arcballScale2: " << g_arcballScale << endl;
-//    cout << "debugxxxxxx" << endl;
     m = RigTForm(Cvec3(0, 0, -dy) * g_arcballScale);
-//    g_arcballScreenRadius = (g_arcballScale / 0.01);
   }
 
-  cout << "debut D" << endl;
   // AMA^-1
-//  cout << "debug10" << endl;
   RigTForm ama = auxFrame * m * inv(auxFrame);
-//  cout << "debug11" << endl;
 
-  cout << "debut E" << endl;
   if (g_mouseClickDown) {
-    cout << "debut F" << endl;
     if (g_currentPickedRbtNode != g_nullRbtNode) {
-      cout << "debut F1" << endl;
-      cout << "hello" << endl;
       g_currentPickedRbtNode->setRbt(ama * g_currentPickedRbtNode->getRbt());
     } else {
-      cout << "debug F2" << endl;
       g_skyNode->setRbt(ama * g_skyNode->getRbt());
     }
 
-    cout << "debut F3" << endl;
     glutPostRedisplay(); // we always redraw if we changed the scene
   }
-  cout << "debut G" << endl;
 
   g_mouseClickX = x;
   g_mouseClickY = g_windowHeight - y - 1;
@@ -617,10 +581,6 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       }
       cout << "pickedRbt 초기화!" << endl;
       break;
-//    case 'o':
-//      g_currentManipulatedObjectIdx = (g_currentManipulatedObjectIdx + 1) % 3;
-//      cout << "현재 object: " << g_manipulatedObjectNames[g_currentManipulatedObjectIdx] << endl;
-//      break;
     case 'm':
       if (g_currentPickedRbtNode == g_nullRbtNode
         && g_eyeNames[g_currentEyeIdx] == "sky"
@@ -821,7 +781,7 @@ static void initScene() {
   g_world->addChild(g_light1Node);
   g_world->addChild(g_light2Node);
 
-  cout << "getPathAccumRbt debug 10" << endl;
+//  cout << "getPathAccumRbt debug 10" << endl;
   g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
 }
 
