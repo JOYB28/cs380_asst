@@ -765,9 +765,8 @@ static void initScene() {
   constructRobot(g_robot1Node, g_redDiffuseMat); // a Red robot
   constructRobot(g_robot2Node, g_blueDiffuseMat); // a Blue robot
 
-  // static const Cvec3 g_light1(2.0, 3.0, 14.0), g_light2(-2, -3.0, -5.0);  // define two lights positions in world space
   g_light1Node.reset(new SgRbtNode(RigTForm(Cvec3(2.5, 4, -5))));
-  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(-2.5, 4, 5))));
+  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(-2.5, 4, -5))));
 
   g_light1Node->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
