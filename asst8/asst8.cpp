@@ -36,6 +36,7 @@
 #include "drawer.h"
 #include "picker.h"
 #include "geometry.h"
+#include "mesh.h"
 
 using namespace std;      // for string, vector, iostream, and other standard C++ stuff
 // If your OS is LINUX, uncomment the line below.
@@ -83,12 +84,17 @@ static shared_ptr<Material> g_redDiffuseMat,
   g_bumpFloorMat,
   g_arcballMat,
   g_pickingMat,
-  g_lightMat;
+  g_lightMat,
+  g_specularMat;
 
 shared_ptr<Material> g_overridingMaterial;
 
 // --------- Geometry
 typedef SgGeometryShapeNode MyShapeNode;
+
+// --------- Mesh
+static Mesh g_cubeMesh;
+static shared_ptr<SimpleGeometryPN> g_cubeGeometry;
 
 // ===================================================================
 // Declare the scene graph and pointers to suitable nodes in the scene
@@ -100,6 +106,7 @@ static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode; // used later when you do picking
 static shared_ptr<SgRbtNode> g_nullRbtNode = shared_ptr<SgRbtNode>();
 static shared_ptr<SgRbtNode> g_light1Node, g_light2Node;
+static shared_ptr<SgRbtNode> g_cubeMeshNode;
 
 // Vertex buffer and index buffer associated with the ground and cube geometry
 static shared_ptr<Geometry> g_ground, g_cube, g_cube2, g_sphere;
@@ -160,6 +167,64 @@ static void initSphere() {
   vector<unsigned short> idx(ibLen);
   makeSphere(1, 20, 10, vtx.begin(), idx.begin());
   g_sphere.reset(new SimpleIndexedGeometryPNTBX(&vtx[0], &idx[0], vtx.size(), idx.size()));
+}
+
+static vector<VertexPN> convert(Mesh& mesh) {
+  vector<VertexPN> vertices;
+
+  cout << "mesh.getNumFaces(): " << mesh.getNumFaces() << endl;
+  for (int i = 0; i < mesh.getNumFaces(); ++i) {
+    const Mesh::Face f = mesh.getFace(i);
+
+    cout << "index of face: " << i << endl;
+    cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
+    cout << "f[0] x: " << f.getVertex(0).getPosition()[0] << ", y: " << f.getVertex(0).getPosition()[1] << ", z: " << f.getVertex(0).getPosition()[2] << endl;
+    cout << "f[1] x: " << f.getVertex(1).getPosition()[0] << ", y: " << f.getVertex(1).getPosition()[1] << ", z: " << f.getVertex(1).getPosition()[2] << endl;
+    cout << "f[2] x: " << f.getVertex(2).getPosition()[0] << ", y: " << f.getVertex(2).getPosition()[1] << ", z: " << f.getVertex(2).getPosition()[2] << endl;
+    cout << "f[3] x: " << f.getVertex(3).getPosition()[0] << ", y: " << f.getVertex(3).getPosition()[1] << ", z: " << f.getVertex(3).getPosition()[2] << endl;
+    cout << "f.getNormal()[0] x: " << f.getNormal()[0] << ", y: " << f.getNormal()[1] << ", z: " << f.getNormal()[2] << endl;
+    VertexPN vertex0 = VertexPN(f.getVertex(0).getPosition(), f.getNormal());
+    VertexPN vertex1 = VertexPN(f.getVertex(1).getPosition(), f.getNormal());
+    VertexPN vertex2 = VertexPN(f.getVertex(2).getPosition(), f.getNormal());
+    VertexPN vertex3 = VertexPN(f.getVertex(3).getPosition(), f.getNormal());
+    vertices.push_back(vertex0);
+    vertices.push_back(vertex1);
+    vertices.push_back(vertex3);
+    vertices.push_back(vertex1);
+    vertices.push_back(vertex2);
+    vertices.push_back(vertex3);
+  }
+
+  cout << "debug1" << endl;
+  return vertices;
+
+//
+//  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
+//  for (int i = 0; i < mesh.getNumVertices(); ++i) {
+//    const Mesh::Vertex v = mesh.getVertex(i);
+//
+//    Mesh::VertexIterator it(v.getIterator()), it0(it);
+//    do
+//    {
+//      cout << "index " << v.getIndex() << endl;
+//      cout << "v.getNormal()[0]: " << v.getNormal()[0] << endl;
+//      cout << "v.getNormal()[1]: " << v.getNormal()[1] << endl;
+//      cout << "v.getNormal()[2]: " << v.getNormal()[2] << endl;
+//    }
+//    while (++it != it0);
+//  }
+}
+
+static void initMesh() {
+  g_cubeMesh = Mesh();
+  g_cubeMesh.load("cube.mesh");
+
+  cout << "debug2" << endl;
+  vector<VertexPN> vertices = convert(g_cubeMesh);
+  cout << "debug3" << endl;
+  g_cubeGeometry.reset(new SimpleGeometryPN());
+  g_cubeGeometry->upload(&vertices[0], vertices.size());
+  cout << "debug4" << endl;
 }
 
 // takes a projection matrix and send to the the shaders
@@ -640,6 +705,7 @@ static void initMaterials() {
   // Create some prototype materials
   Material diffuse("./shaders/basic-gl3.vshader", "./shaders/diffuse-gl3.fshader");
   Material solid("./shaders/basic-gl3.vshader", "./shaders/solid-gl3.fshader");
+  Material specular("./shaders/basic-gl3.vshader", "./shaders/specular-gl3.fshader");
 
   // copy diffuse prototype and set red color
   g_redDiffuseMat.reset(new Material(diffuse));
@@ -667,6 +733,9 @@ static void initMaterials() {
   g_lightMat.reset(new Material(solid));
   g_lightMat->getUniforms().put("uColor", Cvec3f(1, 1, 1));
 
+  g_specularMat.reset(new Material(specular));
+  g_specularMat->getUniforms().put("uColor", Cvec3f(75.0/256.0, 0, 130.0/256.0));
+
   // pick shader
   g_pickingMat.reset(new Material("./shaders/basic-gl3.vshader", "./shaders/pick-gl3.fshader"));
 }
@@ -675,6 +744,7 @@ static void initGeometry() {
   initGround();
   initCubes();
   initSphere();
+  initMesh();
 }
 
 static void constructRobot(shared_ptr<SgTransformNode> base, shared_ptr<Material> material) {
@@ -765,20 +835,25 @@ static void initScene() {
   constructRobot(g_robot1Node, g_redDiffuseMat); // a Red robot
   constructRobot(g_robot2Node, g_blueDiffuseMat); // a Blue robot
 
-  g_light1Node.reset(new SgRbtNode(RigTForm(Cvec3(2.5, 4, -5))));
-  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(-2.5, 4, -5))));
+  g_light1Node.reset(new SgRbtNode(RigTForm(Cvec3(3, 4, -20))));
+  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(-3, 4, 20))));
 
   g_light1Node->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
   g_light2Node->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
 
+  g_cubeMeshNode.reset(new SgRbtNode(RigTForm(Cvec3(0, 1, -2))));
+  g_cubeMeshNode->addChild(shared_ptr<MyShapeNode>(
+    new MyShapeNode(g_cubeGeometry, g_specularMat, Cvec3(0, 0, 0))));
+
   g_world->addChild(g_skyNode);
   g_world->addChild(g_groundNode);
-  g_world->addChild(g_robot1Node);
-  g_world->addChild(g_robot2Node);
+//  g_world->addChild(g_robot1Node);
+//  g_world->addChild(g_robot2Node);
   g_world->addChild(g_light1Node);
   g_world->addChild(g_light2Node);
+  g_world->addChild(g_cubeMeshNode);
 
 //  cout << "getPathAccumRbt debug 10" << endl;
   g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
