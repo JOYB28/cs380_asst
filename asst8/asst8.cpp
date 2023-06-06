@@ -727,6 +727,16 @@ static void mouse(const int button, const int state, const int x, const int y) {
   glutPostRedisplay();
 }
 
+static void playOrStop() {
+  cout << "old g_playing: " << g_playing << endl;
+  g_playing = !g_playing;
+  cout << "new g_playing: " << g_playing << endl;
+
+  if (g_playing) {
+    animateTimerCallback(0);
+  }
+}
+
 static void keyboard(const unsigned char key, const int x, const int y) {
   switch (key) {
     case 27:
@@ -791,11 +801,16 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       bool old_shading = g_smoothShading;
       if (old_shading) {
         g_smoothShading = false;
-        cout << "smooth shading end by f pressed! flat shading from now. g_smoothShading = false" << endl;
+        cout << "smooth shading end by f pressed! flat shading from now on. g_smoothShading = false" << endl;
       } else {
         g_smoothShading = true;
-        cout << "flat shading end by f pressed! smooth shading from now. g_smoothShading = true" << endl;
+        cout << "flat shading end by f pressed! smooth shading from now on. g_smoothShading = true" << endl;
       }
+      break;
+    }
+    case 'y':
+    {
+      playOrStop();
       break;
     }
   }
