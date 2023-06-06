@@ -85,7 +85,8 @@ static shared_ptr<Material> g_redDiffuseMat,
   g_arcballMat,
   g_pickingMat,
   g_lightMat,
-  g_specularMat;
+  g_specularMat,
+  g_specularMat2;
 
 shared_ptr<Material> g_overridingMaterial;
 
@@ -93,11 +94,12 @@ shared_ptr<Material> g_overridingMaterial;
 typedef SgGeometryShapeNode MyShapeNode;
 
 // --------- Mesh
-static Mesh g_cubeMeshOriginal;
-static Mesh g_cubeMesh;
+static Mesh g_cubeMeshOriginal, g_cubeMesh;
+static Mesh g_modelMeshOriginal, g_modelMesh;
 static shared_ptr<SimpleGeometryPN> g_cubeGeometry;
+static shared_ptr<SimpleGeometryPN> g_modelGeometry;
 static bool g_smoothShading = false;
-static int g_numberOfSubdivisionSteps = 1;
+static int g_numberOfSubdivisionSteps = 0;
 
 static int g_msBetweenKeyFrames = 500;
 static int g_animateFramesPerSecond = 60;
@@ -113,7 +115,7 @@ static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode; // used later when you do picking
 static shared_ptr<SgRbtNode> g_nullRbtNode = shared_ptr<SgRbtNode>();
 static shared_ptr<SgRbtNode> g_light1Node, g_light2Node;
-static shared_ptr<SgRbtNode> g_cubeMeshNode;
+static shared_ptr<SgRbtNode> g_cubeMeshNode, g_modelMeshNode;
 
 // Vertex buffer and index buffer associated with the ground and cube geometry
 static shared_ptr<Geometry> g_ground, g_cube, g_cube2, g_sphere;
@@ -286,7 +288,7 @@ static vector<VertexPN> convert(Mesh& mesh) {
   return vertices;
 }
 
-static void subdivide(int remainingSubdivisionSteps) {
+static void subdivide(Mesh& mesh, int remainingSubdivisionSteps) {
 //  cout << "debug1" << endl;
   if (remainingSubdivisionSteps <= 0) {
     return;
@@ -294,9 +296,9 @@ static void subdivide(int remainingSubdivisionSteps) {
 //  cout << "debug2" << endl;
 
   // face-vertices
-  for (int i = 0; i < g_cubeMesh.getNumFaces(); ++i) {
+  for (int i = 0; i < mesh.getNumFaces(); ++i) {
 //    cout << "debug21" << endl;
-    const Mesh::Face f = g_cubeMesh.getFace(i);
+    const Mesh::Face f = mesh.getFace(i);
 //    cout << "debug22" << endl;
     Cvec3 vertexP = f.getVertex(0).getPosition();
 //    cout << "debug23" << endl;
@@ -307,25 +309,25 @@ static void subdivide(int remainingSubdivisionSteps) {
 //    cout << "debug25" << endl;
     vertexP /= (f.getNumVertices() * 1.0);
 //    cout << "debug26" << endl;
-    g_cubeMesh.setNewFaceVertex(f, vertexP);
+    mesh.setNewFaceVertex(f, vertexP);
   }
 //  cout << "debug3" << endl;
 
   // edge-vertices
-  for (int i = 0; i < g_cubeMesh.getNumEdges(); ++i) {
-    const Mesh::Edge e = g_cubeMesh.getEdge(i);
+  for (int i = 0; i < mesh.getNumEdges(); ++i) {
+    const Mesh::Edge e = mesh.getEdge(i);
     Cvec3 vertexPV1 = e.getVertex(0).getPosition();
     Cvec3 vertexPV2 = e.getVertex(1).getPosition();
-    Cvec3 vertexPVF1 = g_cubeMesh.getNewFaceVertex(e.getFace(0));
-    Cvec3 vertexPVF2 = g_cubeMesh.getNewFaceVertex(e.getFace(1));
+    Cvec3 vertexPVF1 = mesh.getNewFaceVertex(e.getFace(0));
+    Cvec3 vertexPVF2 = mesh.getNewFaceVertex(e.getFace(1));
     Cvec3 vertexP = (vertexPV1 + vertexPV2 + vertexPVF1 + vertexPVF2) / 4.0;
-    g_cubeMesh.setNewEdgeVertex(e, vertexP);
+    mesh.setNewEdgeVertex(e, vertexP);
   }
 //  cout << "debug4" << endl;
 
   // vertex-vertices
-  for (int i = 0; i < g_cubeMesh.getNumVertices(); ++i) {
-    const Mesh::Vertex v = g_cubeMesh.getVertex(i);
+  for (int i = 0; i < mesh.getNumVertices(); ++i) {
+    const Mesh::Vertex v = mesh.getVertex(i);
 
     int numV = 0;
     Cvec3 vertexPJSum = Cvec3(0, 0, 0);
@@ -335,20 +337,20 @@ static void subdivide(int remainingSubdivisionSteps) {
     {
       ++numV;
       vertexPJSum += it.getVertex().getPosition();
-      vertexPFJSum += g_cubeMesh.getNewFaceVertex(it.getFace());
+      vertexPFJSum += mesh.getNewFaceVertex(it.getFace());
     }
     while (++it != it0);
 
     Cvec3 vertexP = v.getPosition() * ((numV - 2) * 1.0) / (numV * 1.0)
        + vertexPJSum * 1.0 / (numV * numV * 1.0)
        + vertexPFJSum * 1.0 / (numV * numV * 1.0);
-    g_cubeMesh.setNewVertexVertex(v, vertexP);
+    mesh.setNewVertexVertex(v, vertexP);
   }
 //  cout << "debug5" << endl;
 
-  g_cubeMesh.subdivide();
+  mesh.subdivide();
 //  cout << "debug6" << endl;
-  subdivide(--remainingSubdivisionSteps);
+  subdivide(mesh, --remainingSubdivisionSteps);
 //  cout << "debug7" << endl;
 }
 
@@ -361,17 +363,29 @@ static void animateMesh(float t) {
 //  cout << "sin(1): " << sin(CS380_PI * 2) << endl;
 //  cout << "t: " << t << endl;
   g_cubeMesh = Mesh(g_cubeMeshOriginal);
+  g_modelMesh = Mesh(g_modelMeshOriginal);
+
   for (int i = 0; i < g_cubeMeshOriginal.getNumVertices(); ++i) {
     Cvec3 originalPosition = g_cubeMeshOriginal.getVertex(i).getPosition();
-//    float scale = sin(i + t);
     g_cubeMesh.getVertex(i).setPosition(originalPosition * (1 + sin(i + t)/2));
   }
+  for (int i = 0; i < g_modelMeshOriginal.getNumVertices(); ++i) {
+    Cvec3 originalPosition = g_modelMeshOriginal.getVertex(i).getPosition();
+    g_modelMesh.getVertex(i).setPosition(originalPosition * (1 + sin(i + t)/2));
+  }
 
-  subdivide(g_numberOfSubdivisionSteps);
+  subdivide(g_cubeMesh, g_numberOfSubdivisionSteps);
+  subdivide(g_modelMesh, g_numberOfSubdivisionSteps);
 
   smoothOrFlatShading(g_cubeMesh);
-  vector<VertexPN> vertices = convert(g_cubeMesh);
-  g_cubeGeometry->upload(&vertices[0], vertices.size());
+  smoothOrFlatShading(g_modelMesh);
+
+  vector<VertexPN> cubeVertices = convert(g_cubeMesh);
+  vector<VertexPN> modelVertices = convert(g_modelMesh);
+
+  g_cubeGeometry->upload(&cubeVertices[0], cubeVertices.size());
+  g_modelGeometry->upload(&modelVertices[0], modelVertices.size());
+
   glutPostRedisplay();
 //  cout << "animateMesh ends" << endl;
 }
@@ -397,12 +411,23 @@ static void initMesh() {
   g_cubeMeshOriginal = Mesh();
   g_cubeMeshOriginal.load("cube.mesh");
 
+  g_modelMeshOriginal = Mesh();
+  g_modelMeshOriginal.load("model.mesh");
+
   smoothOrFlatShading(g_cubeMeshOriginal);
-  vector<VertexPN> vertices = convert(g_cubeMeshOriginal);
+  smoothOrFlatShading(g_modelMeshOriginal);
+
+  vector<VertexPN> cubeVertices = convert(g_cubeMeshOriginal);
+  vector<VertexPN> modelVertices = convert(g_modelMeshOriginal);
+
   g_cubeGeometry.reset(new SimpleGeometryPN());
-  g_cubeGeometry->upload(&vertices[0], vertices.size());
+  g_cubeGeometry->upload(&cubeVertices[0], cubeVertices.size());
+
+  g_modelGeometry.reset(new SimpleGeometryPN());
+  g_modelGeometry->upload(&modelVertices[0], modelVertices.size());
 
   g_cubeMesh = Mesh(g_cubeMeshOriginal);
+  g_modelMesh = Mesh(g_modelMeshOriginal);
 
   animateTimerCallback(0);
 }
@@ -820,22 +845,22 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       glFlush();
       writePpmScreenshot(g_windowWidth, g_windowHeight, "out.ppm");
       break;
-    case 'v':
-      g_currentEyeIdx = (g_currentEyeIdx + 1) % 3;
-      cout << "현재 eye: " << g_eyeNames[g_currentEyeIdx] << endl;
-
-      if (g_currentEyeIdx == 1) {
-        cout << "eye가 robot이라서 pickedRbtNode를 robot1로 업데이트!" << endl;
-        g_currentPickedRbtNode = g_robot1Node;
-      } else if (g_currentEyeIdx == 2) {
-        cout << "eye가 robot이라서 pickedRbtNode를 robot2로 업데이트!" << endl;
-        g_currentPickedRbtNode = g_robot2Node;
-      } else {
-        // eye가 sky가 될때 초기화
-        g_currentPickedRbtNode = g_nullRbtNode;
-      }
-      cout << "pickedRbt 초기화!" << endl;
-      break;
+//    case 'v':
+//      g_currentEyeIdx = (g_currentEyeIdx + 1) % 3;
+//      cout << "현재 eye: " << g_eyeNames[g_currentEyeIdx] << endl;
+//
+//      if (g_currentEyeIdx == 1) {
+//        cout << "eye가 robot이라서 pickedRbtNode를 robot1로 업데이트!" << endl;
+//        g_currentPickedRbtNode = g_robot1Node;
+//      } else if (g_currentEyeIdx == 2) {
+//        cout << "eye가 robot이라서 pickedRbtNode를 robot2로 업데이트!" << endl;
+//        g_currentPickedRbtNode = g_robot2Node;
+//      } else {
+//        // eye가 sky가 될때 초기화
+//        g_currentPickedRbtNode = g_nullRbtNode;
+//      }
+//      cout << "pickedRbt 초기화!" << endl;
+//      break;
     case 'm':
       if (g_currentPickedRbtNode == g_nullRbtNode
         && g_eyeNames[g_currentEyeIdx] == "sky"
@@ -887,8 +912,12 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     }
     case '8':
     {
-      g_msBetweenKeyFrames /= 2;
-      cout << "speed double (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
+      if (g_msBetweenKeyFrames == 1) {
+        cout << "max speed! (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
+      } else {
+        g_msBetweenKeyFrames /= 2;
+        cout << "speed double (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
+      }
       break;
     }
     case '9':
@@ -980,6 +1009,9 @@ static void initMaterials() {
 
   g_specularMat.reset(new Material(specular));
   g_specularMat->getUniforms().put("uColor", Cvec3f(75.0/256.0, 0, 130.0/256.0));
+
+  g_specularMat2.reset(new Material(specular));
+  g_specularMat2->getUniforms().put("uColor", Cvec3f(217.0/256.0, 221.0/256.0, 220.0/256.0));
 
   // pick shader
   g_pickingMat.reset(new Material("./shaders/basic-gl3.vshader", "./shaders/pick-gl3.fshader"));
@@ -1080,17 +1112,21 @@ static void initScene() {
   constructRobot(g_robot1Node, g_redDiffuseMat); // a Red robot
   constructRobot(g_robot2Node, g_blueDiffuseMat); // a Blue robot
 
-  g_light1Node.reset(new SgRbtNode(RigTForm(Cvec3(3, 4, -20))));
-  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(-3, 4, 20))));
+  g_light1Node.reset(new SgRbtNode(RigTForm(Cvec3(0, 4, -20))));
+  g_light2Node.reset(new SgRbtNode(RigTForm(Cvec3(0, 4, 20))));
 
   g_light1Node->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
   g_light2Node->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_sphere, g_lightMat, Cvec3(0, 0, 0))));
 
-  g_cubeMeshNode.reset(new SgRbtNode(RigTForm(Cvec3(0, 0, 0))));
+  g_cubeMeshNode.reset(new SgRbtNode(RigTForm(Cvec3(1.3, 0, -2))));
   g_cubeMeshNode->addChild(shared_ptr<MyShapeNode>(
     new MyShapeNode(g_cubeGeometry, g_specularMat, Cvec3(0, 0, 0))));
+
+  g_modelMeshNode.reset(new SgRbtNode(RigTForm(Cvec3(-1.3, 0, -2))));
+  g_modelMeshNode->addChild(shared_ptr<MyShapeNode>(
+    new MyShapeNode(g_modelGeometry, g_specularMat2, Cvec3(0, 0 ,0))));
 
   g_world->addChild(g_skyNode);
   g_world->addChild(g_groundNode);
@@ -1099,6 +1135,7 @@ static void initScene() {
   g_world->addChild(g_light1Node);
   g_world->addChild(g_light2Node);
   g_world->addChild(g_cubeMeshNode);
+  g_world->addChild(g_modelMeshNode);
 
 //  cout << "getPathAccumRbt debug 10" << endl;
   g_currentEyeRbt = getPathAccumRbt(g_world, g_skyNode);
