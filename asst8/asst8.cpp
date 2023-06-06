@@ -813,6 +813,18 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       playOrStop();
       break;
     }
+    case '7':
+    {
+      cout << "speed half" << endl;
+      g_msBetweenKeyFrames *= 2;
+      break;
+    }
+    case '8':
+    {
+      cout << "speed double" << endl;
+      g_msBetweenKeyFrames /= 2;
+      break;
+    }
   }
   glutPostRedisplay();
 }
