@@ -95,6 +95,7 @@ typedef SgGeometryShapeNode MyShapeNode;
 // --------- Mesh
 static Mesh g_cubeMesh;
 static shared_ptr<SimpleGeometryPN> g_cubeGeometry;
+static bool g_smoothShading = true; // TODO: initial false
 
 // ===================================================================
 // Declare the scene graph and pointers to suitable nodes in the scene
@@ -169,24 +170,104 @@ static void initSphere() {
   g_sphere.reset(new SimpleIndexedGeometryPNTBX(&vtx[0], &idx[0], vtx.size(), idx.size()));
 }
 
+static void smoothOrFlatShading(Mesh& mesh) {
+  cout << "smoothOrFlatShading() starts!" << endl;
+  cout << "mesh.getNumFaces(): " << mesh.getNumFaces() << endl;
+  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
+
+  vector<int> verticesIncidentSum;
+  vector<Cvec3> verticesSmoothNormal;
+
+  if (g_smoothShading) {
+    cout << "smooth shading calculation starts!" << endl;
+    // 초기화 (Zero out)
+    for (int i = 0; i < mesh.getNumVertices(); ++i) {
+      verticesIncidentSum.push_back(0);
+      verticesSmoothNormal.push_back(Cvec3(0, 0, 0));
+    }
+
+    for (int i = 0; i < mesh.getNumFaces(); ++i) {
+      const Mesh::Face f = mesh.getFace(i);
+
+      Cvec3 faceNormal = f.getNormal();
+
+      cout << "index of face: " << i << endl;
+      cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
+      cout << "f.faceNormal x:" << faceNormal[0] << ", y: " << faceNormal[1] << ", z: " << faceNormal[2] << endl;
+
+      for (int j = 0; j < f.getNumVertices(); ++j) {
+        int index = f.getVertex(j).getIndex();
+        int oldIncidentSum = verticesIncidentSum[index];
+        Cvec3 oldNormal = verticesSmoothNormal[index];
+        cout << "vertice face에 대한 index: " << j << ", 전체에 대한 index:" << index << endl;
+        cout << "oldIncidentSum: " << oldIncidentSum << ", oldNormal x: " << oldNormal[0] << ", y: " << oldNormal[1] << ", z: "<< oldNormal[2] <<  endl;
+        int newIncidentSum = oldIncidentSum + 1;
+        Cvec3 newNormal = (oldNormal * oldIncidentSum + faceNormal) / newIncidentSum;
+        cout << "newIncidentSum: " << newIncidentSum << ", newNormal x: " << newNormal[0] << ", y: " << newNormal[1] << ", z: "<< newNormal[2] <<  endl;
+        verticesIncidentSum[index] = newIncidentSum;
+        verticesSmoothNormal[index] = newNormal;
+      }
+    }
+
+    cout << "smooth shading calculation 결과!" << endl;
+    for (int i = 0; i < mesh.getNumVertices(); ++i) {
+      int resultIncidentSum = verticesIncidentSum[i];
+      Cvec3 resultNormal = verticesSmoothNormal[i];
+      cout << "i: " << i << "resultIncidentSum: " << resultIncidentSum << ", resultNormal x: " << resultNormal[0] << ", y: " << resultNormal[1] << ", z: "<< resultNormal[2] <<  endl;
+
+      mesh.getVertex(i).setNormal(resultNormal);
+    }
+
+    cout << "smooth shading calculation ends!" << endl;
+  } else {
+    cout << "flat shading calculation ??" << endl;
+  }
+
+  cout << "smoothOrFlatShading() ends!" << endl;
+}
+
 static vector<VertexPN> convert(Mesh& mesh) {
   vector<VertexPN> vertices;
 
   cout << "mesh.getNumFaces(): " << mesh.getNumFaces() << endl;
+  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
+
   for (int i = 0; i < mesh.getNumFaces(); ++i) {
     const Mesh::Face f = mesh.getFace(i);
 
     cout << "index of face: " << i << endl;
     cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
-    cout << "f[0] x: " << f.getVertex(0).getPosition()[0] << ", y: " << f.getVertex(0).getPosition()[1] << ", z: " << f.getVertex(0).getPosition()[2] << endl;
-    cout << "f[1] x: " << f.getVertex(1).getPosition()[0] << ", y: " << f.getVertex(1).getPosition()[1] << ", z: " << f.getVertex(1).getPosition()[2] << endl;
-    cout << "f[2] x: " << f.getVertex(2).getPosition()[0] << ", y: " << f.getVertex(2).getPosition()[1] << ", z: " << f.getVertex(2).getPosition()[2] << endl;
-    cout << "f[3] x: " << f.getVertex(3).getPosition()[0] << ", y: " << f.getVertex(3).getPosition()[1] << ", z: " << f.getVertex(3).getPosition()[2] << endl;
+    cout << "f[0] index: " << f.getVertex(0).getIndex() << ", x: " << f.getVertex(0).getPosition()[0] << ", y: " << f.getVertex(0).getPosition()[1] << ", z: " << f.getVertex(0).getPosition()[2] << endl;
+    cout << "f[1] index: " << f.getVertex(1).getIndex() << ", x: " << f.getVertex(1).getPosition()[0] << ", y: " << f.getVertex(1).getPosition()[1] << ", z: " << f.getVertex(1).getPosition()[2] << endl;
+    cout << "f[2] index: " << f.getVertex(2).getIndex() << ", x: " << f.getVertex(2).getPosition()[0] << ", y: " << f.getVertex(2).getPosition()[1] << ", z: " << f.getVertex(2).getPosition()[2] << endl;
+    cout << "f[3] index: " << f.getVertex(3).getIndex() << ", x: " << f.getVertex(3).getPosition()[0] << ", y: " << f.getVertex(3).getPosition()[1] << ", z: " << f.getVertex(3).getPosition()[2] << endl;
     cout << "f.getNormal()[0] x: " << f.getNormal()[0] << ", y: " << f.getNormal()[1] << ", z: " << f.getNormal()[2] << endl;
-    VertexPN vertex0 = VertexPN(f.getVertex(0).getPosition(), f.getNormal());
-    VertexPN vertex1 = VertexPN(f.getVertex(1).getPosition(), f.getNormal());
-    VertexPN vertex2 = VertexPN(f.getVertex(2).getPosition(), f.getNormal());
-    VertexPN vertex3 = VertexPN(f.getVertex(3).getPosition(), f.getNormal());
+    Cvec3 vertexP0 = f.getVertex(0).getPosition();
+    Cvec3 vertexP1 = f.getVertex(1).getPosition();
+    Cvec3 vertexP2 = f.getVertex(2).getPosition();
+    Cvec3 vertexP3 = f.getVertex(3).getPosition();
+    Cvec3 vertexN0;
+    Cvec3 vertexN1;
+    Cvec3 vertexN2;
+    Cvec3 vertexN3;
+    if (g_smoothShading) {
+      // 미리 계산되어 있음
+      vertexN0 = f.getVertex(0).getNormal();
+      vertexN1 = f.getVertex(1).getNormal();
+      vertexN2 = f.getVertex(2).getNormal();
+      vertexN3 = f.getVertex(3).getNormal();
+    } else {
+      Cvec3 faceNormal = f.getNormal();
+      vertexN0 = faceNormal;
+      vertexN1 = faceNormal;
+      vertexN2 = faceNormal;
+      vertexN3 = faceNormal;
+    }
+
+    VertexPN vertex0 = VertexPN(vertexP0, vertexN0);
+    VertexPN vertex1 = VertexPN(vertexP1, vertexN1);
+    VertexPN vertex2 = VertexPN(vertexP2, vertexN2);
+    VertexPN vertex3 = VertexPN(vertexP3, vertexN3);
     vertices.push_back(vertex0);
     vertices.push_back(vertex1);
     vertices.push_back(vertex3);
@@ -197,22 +278,6 @@ static vector<VertexPN> convert(Mesh& mesh) {
 
   cout << "debug1" << endl;
   return vertices;
-
-//
-//  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
-//  for (int i = 0; i < mesh.getNumVertices(); ++i) {
-//    const Mesh::Vertex v = mesh.getVertex(i);
-//
-//    Mesh::VertexIterator it(v.getIterator()), it0(it);
-//    do
-//    {
-//      cout << "index " << v.getIndex() << endl;
-//      cout << "v.getNormal()[0]: " << v.getNormal()[0] << endl;
-//      cout << "v.getNormal()[1]: " << v.getNormal()[1] << endl;
-//      cout << "v.getNormal()[2]: " << v.getNormal()[2] << endl;
-//    }
-//    while (++it != it0);
-//  }
 }
 
 static void initMesh() {
@@ -220,6 +285,7 @@ static void initMesh() {
   g_cubeMesh.load("cube.mesh");
 
   cout << "debug2" << endl;
+  smoothOrFlatShading(g_cubeMesh);
   vector<VertexPN> vertices = convert(g_cubeMesh);
   cout << "debug3" << endl;
   g_cubeGeometry.reset(new SimpleGeometryPN());
@@ -657,6 +723,7 @@ static void keyboard(const unsigned char key, const int x, const int y) {
       }
       break;
     case 'p':
+    {
       bool old_picking = g_picking;
       if (g_picking) {
         g_picking = false;
@@ -670,6 +737,19 @@ static void keyboard(const unsigned char key, const int x, const int y) {
         cout << "picking start! g_picking: false -> true" << endl;
       }
       break;
+    }
+    case 'f':
+    {
+      bool old_shading = g_smoothShading;
+      if (old_shading) {
+        g_smoothShading = false;
+        cout << "smooth shading end by f pressed! flat shading from now. g_smoothShading = false" << endl;
+      } else {
+        g_smoothShading = true;
+        cout << "flat shading end by f pressed! smooth shading from now. g_smoothShading = true" << endl;
+      }
+      break;
+    }
   }
   glutPostRedisplay();
 }
