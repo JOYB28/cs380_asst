@@ -93,9 +93,14 @@ shared_ptr<Material> g_overridingMaterial;
 typedef SgGeometryShapeNode MyShapeNode;
 
 // --------- Mesh
+static Mesh g_cubeMeshOriginal;
 static Mesh g_cubeMesh;
 static shared_ptr<SimpleGeometryPN> g_cubeGeometry;
 static bool g_smoothShading = true; // TODO: initial false
+
+static int g_msBetweenKeyFrames = 500;
+static int g_animateFramesPerSecond = 60;
+static bool g_playing = true; // TOOD: initial false?
 
 // ===================================================================
 // Declare the scene graph and pointers to suitable nodes in the scene
@@ -191,57 +196,57 @@ static void smoothOrFlatShading(Mesh& mesh) {
 
       Cvec3 faceNormal = f.getNormal();
 
-      cout << "index of face: " << i << endl;
-      cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
-      cout << "f.faceNormal x:" << faceNormal[0] << ", y: " << faceNormal[1] << ", z: " << faceNormal[2] << endl;
+//      cout << "index of face: " << i << endl;
+//      cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
+//      cout << "f.faceNormal x:" << faceNormal[0] << ", y: " << faceNormal[1] << ", z: " << faceNormal[2] << endl;
 
       for (int j = 0; j < f.getNumVertices(); ++j) {
         int index = f.getVertex(j).getIndex();
         int oldIncidentSum = verticesIncidentSum[index];
         Cvec3 oldNormal = verticesSmoothNormal[index];
-        cout << "vertice face에 대한 index: " << j << ", 전체에 대한 index:" << index << endl;
-        cout << "oldIncidentSum: " << oldIncidentSum << ", oldNormal x: " << oldNormal[0] << ", y: " << oldNormal[1] << ", z: "<< oldNormal[2] <<  endl;
+//        cout << "vertice face에 대한 index: " << j << ", 전체에 대한 index:" << index << endl;
+//        cout << "oldIncidentSum: " << oldIncidentSum << ", oldNormal x: " << oldNormal[0] << ", y: " << oldNormal[1] << ", z: "<< oldNormal[2] <<  endl;
         int newIncidentSum = oldIncidentSum + 1;
         Cvec3 newNormal = (oldNormal * oldIncidentSum + faceNormal) / newIncidentSum;
-        cout << "newIncidentSum: " << newIncidentSum << ", newNormal x: " << newNormal[0] << ", y: " << newNormal[1] << ", z: "<< newNormal[2] <<  endl;
+//        cout << "newIncidentSum: " << newIncidentSum << ", newNormal x: " << newNormal[0] << ", y: " << newNormal[1] << ", z: "<< newNormal[2] <<  endl;
         verticesIncidentSum[index] = newIncidentSum;
         verticesSmoothNormal[index] = newNormal;
       }
     }
 
-    cout << "smooth shading calculation 결과!" << endl;
+//    cout << "smooth shading calculation 결과!" << endl;
     for (int i = 0; i < mesh.getNumVertices(); ++i) {
       int resultIncidentSum = verticesIncidentSum[i];
       Cvec3 resultNormal = verticesSmoothNormal[i];
-      cout << "i: " << i << "resultIncidentSum: " << resultIncidentSum << ", resultNormal x: " << resultNormal[0] << ", y: " << resultNormal[1] << ", z: "<< resultNormal[2] <<  endl;
+//      cout << "i: " << i << "resultIncidentSum: " << resultIncidentSum << ", resultNormal x: " << resultNormal[0] << ", y: " << resultNormal[1] << ", z: "<< resultNormal[2] <<  endl;
 
       mesh.getVertex(i).setNormal(resultNormal);
     }
 
-    cout << "smooth shading calculation ends!" << endl;
+//    cout << "smooth shading calculation ends!" << endl;
   } else {
-    cout << "flat shading calculation ??" << endl;
+//    cout << "flat shading calculation ??" << endl;
   }
 
-  cout << "smoothOrFlatShading() ends!" << endl;
+//  cout << "smoothOrFlatShading() ends!" << endl;
 }
 
 static vector<VertexPN> convert(Mesh& mesh) {
   vector<VertexPN> vertices;
 
-  cout << "mesh.getNumFaces(): " << mesh.getNumFaces() << endl;
-  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
+//  cout << "mesh.getNumFaces(): " << mesh.getNumFaces() << endl;
+//  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
 
   for (int i = 0; i < mesh.getNumFaces(); ++i) {
     const Mesh::Face f = mesh.getFace(i);
 
-    cout << "index of face: " << i << endl;
-    cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
-    cout << "f[0] index: " << f.getVertex(0).getIndex() << ", x: " << f.getVertex(0).getPosition()[0] << ", y: " << f.getVertex(0).getPosition()[1] << ", z: " << f.getVertex(0).getPosition()[2] << endl;
-    cout << "f[1] index: " << f.getVertex(1).getIndex() << ", x: " << f.getVertex(1).getPosition()[0] << ", y: " << f.getVertex(1).getPosition()[1] << ", z: " << f.getVertex(1).getPosition()[2] << endl;
-    cout << "f[2] index: " << f.getVertex(2).getIndex() << ", x: " << f.getVertex(2).getPosition()[0] << ", y: " << f.getVertex(2).getPosition()[1] << ", z: " << f.getVertex(2).getPosition()[2] << endl;
-    cout << "f[3] index: " << f.getVertex(3).getIndex() << ", x: " << f.getVertex(3).getPosition()[0] << ", y: " << f.getVertex(3).getPosition()[1] << ", z: " << f.getVertex(3).getPosition()[2] << endl;
-    cout << "f.getNormal()[0] x: " << f.getNormal()[0] << ", y: " << f.getNormal()[1] << ", z: " << f.getNormal()[2] << endl;
+//    cout << "index of face: " << i << endl;
+//    cout << "f.getNumVertices(): " << f.getNumVertices() << endl;
+//    cout << "f[0] index: " << f.getVertex(0).getIndex() << ", x: " << f.getVertex(0).getPosition()[0] << ", y: " << f.getVertex(0).getPosition()[1] << ", z: " << f.getVertex(0).getPosition()[2] << endl;
+//    cout << "f[1] index: " << f.getVertex(1).getIndex() << ", x: " << f.getVertex(1).getPosition()[0] << ", y: " << f.getVertex(1).getPosition()[1] << ", z: " << f.getVertex(1).getPosition()[2] << endl;
+//    cout << "f[2] index: " << f.getVertex(2).getIndex() << ", x: " << f.getVertex(2).getPosition()[0] << ", y: " << f.getVertex(2).getPosition()[1] << ", z: " << f.getVertex(2).getPosition()[2] << endl;
+//    cout << "f[3] index: " << f.getVertex(3).getIndex() << ", x: " << f.getVertex(3).getPosition()[0] << ", y: " << f.getVertex(3).getPosition()[1] << ", z: " << f.getVertex(3).getPosition()[2] << endl;
+//    cout << "f.getNormal()[0] x: " << f.getNormal()[0] << ", y: " << f.getNormal()[1] << ", z: " << f.getNormal()[2] << endl;
     Cvec3 vertexP0 = f.getVertex(0).getPosition();
     Cvec3 vertexP1 = f.getVertex(1).getPosition();
     Cvec3 vertexP2 = f.getVertex(2).getPosition();
@@ -276,21 +281,64 @@ static vector<VertexPN> convert(Mesh& mesh) {
     vertices.push_back(vertex3);
   }
 
-  cout << "debug1" << endl;
+//  cout << "debug1" << endl;
   return vertices;
 }
 
-static void initMesh() {
-  g_cubeMesh = Mesh();
-  g_cubeMesh.load("cube.mesh");
+static void animateMesh(float t) {
+//  cout << "animateMesh starts" << endl;
+//  cout << "sin(0): " << sin(0) << endl;
+//  cout << "sin(0): " << sin(CS380_PI) << endl;
+//  cout << "sin(0): " << sin(180) << endl;
+//  cout << "sin(0): " << sin(360) << endl;
+//  cout << "sin(1): " << sin(CS380_PI * 2) << endl;
+//  cout << "t: " << t << endl;
+  g_cubeMesh = Mesh(g_cubeMeshOriginal);
+  for (int i = 0; i < g_cubeMeshOriginal.getNumVertices(); ++i) {
+    Cvec3 originalPosition = g_cubeMeshOriginal.getVertex(i).getPosition();
+//    float scale = sin(i + t);
+    g_cubeMesh.getVertex(i).setPosition(originalPosition * (1 + sin(i + t)/2));
+  }
 
-  cout << "debug2" << endl;
   smoothOrFlatShading(g_cubeMesh);
   vector<VertexPN> vertices = convert(g_cubeMesh);
-  cout << "debug3" << endl;
+  g_cubeGeometry->upload(&vertices[0], vertices.size());
+  glutPostRedisplay();
+//  cout << "animateMesh ends" << endl;
+}
+
+// Interpret "ms" as milliseconds into the animation
+static void animateTimerCallback(int ms) {
+  float t = (float)ms / (float)g_msBetweenKeyFrames;
+
+  animateMesh(t);
+  if (g_playing) {
+    glutTimerFunc(
+      1000 / g_animateFramesPerSecond,
+      animateTimerCallback,
+      ms + 1000 / g_animateFramesPerSecond
+    );
+  }
+  else {
+    cout << "g_playing: false, stop animation! (2)" << endl;
+  }
+}
+
+static void initMesh() {
+  g_cubeMeshOriginal = Mesh();
+  g_cubeMeshOriginal.load("cube.mesh");
+
+//  cout << "debug2" << endl;
+  smoothOrFlatShading(g_cubeMeshOriginal);
+  vector<VertexPN> vertices = convert(g_cubeMeshOriginal);
+//  cout << "debug3" << endl;
   g_cubeGeometry.reset(new SimpleGeometryPN());
   g_cubeGeometry->upload(&vertices[0], vertices.size());
-  cout << "debug4" << endl;
+//  cout << "debug4" << endl;
+
+  g_cubeMesh = Mesh(g_cubeMeshOriginal);
+
+  animateTimerCallback(0);
 }
 
 // takes a projection matrix and send to the the shaders
