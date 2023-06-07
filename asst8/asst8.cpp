@@ -101,7 +101,7 @@ static shared_ptr<SimpleGeometryPN> g_modelGeometry;
 static bool g_smoothShading = false;
 static int g_numberOfSubdivisionSteps = 0;
 
-static int g_msBetweenKeyFrames = 500;
+static float g_msBetweenKeyFrames = 500;
 static int g_animateFramesPerSecond = 60;
 static bool g_playing = true;
 
@@ -183,6 +183,7 @@ static void smoothOrFlatShading(Mesh& mesh) {
 //  cout << "mesh.getNumFaces(): " << mesh.getNumFaces() << endl;
 //  cout << "mesh.getNumVertices(): " << mesh.getNumVertices() << endl;
 
+  // TOOD: VertexIterator 사용하기
   vector<int> verticesIncidentSum;
   vector<Cvec3> verticesSmoothNormal;
 
@@ -272,6 +273,8 @@ static vector<VertexPN> convert(Mesh& mesh) {
       vertexN3 = faceNormal;
     }
 
+    // TOOD: Face의 Vertices 수 고려해서 사각형 아닌 경우도 처리될 수 있게 하기
+    // -- 현재는 사각형에 대해서만 두개의 삼각형으로 쪼개는 것만 고려
     VertexPN vertex0 = VertexPN(vertexP0, vertexN0);
     VertexPN vertex1 = VertexPN(vertexP1, vertexN1);
     VertexPN vertex2 = VertexPN(vertexP2, vertexN2);
@@ -906,18 +909,16 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     }
     case '7':
     {
-      g_msBetweenKeyFrames *= 2;
+      // limit 필요없을지?
+      g_msBetweenKeyFrames *= 2.0;
       cout << "speed half (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
       break;
     }
     case '8':
     {
-      if (g_msBetweenKeyFrames == 1) {
-        cout << "max speed! (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
-      } else {
-        g_msBetweenKeyFrames /= 2;
-        cout << "speed double (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
-      }
+      // limit 필요없을지?
+      g_msBetweenKeyFrames /= 2.0;
+      cout << "speed double (current g_msBetweenKeyFramse: " << g_msBetweenKeyFrames <<  endl;
       break;
     }
     case '9':
